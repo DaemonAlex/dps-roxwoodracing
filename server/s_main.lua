@@ -429,12 +429,21 @@ RegisterNetEvent("speedway:createLobby", function(lobbyName, trackType, lapCount
   if RateLimit(src, "createLobby", 2000) then return end
 
   -- Validate lobbyName: must be a string, 1-50 chars, alphanumeric+underscore only
-  if type(lobbyName) ~= 'string' or #lobbyName < 1 or #lobbyName > 50 or lobbyName:find('[^%w_]') then return end
+  if type(lobbyName) ~= 'string' or #lobbyName < 1 or #lobbyName > 50 or lobbyName:find('[^%w_]') then
+    ServerNotify(src, 'Speedway', 'Invalid lobby name (alphanumeric/underscore, 1-50 chars).', 'error')
+    return
+  end
   -- Validate trackType: must exist in config
-  if type(trackType) ~= 'string' or not VALID_TRACKS[trackType] then return end
+  if type(trackType) ~= 'string' or not VALID_TRACKS[trackType] then
+    ServerNotify(src, 'Speedway', 'Invalid track selection.', 'error')
+    return
+  end
   -- Validate lapCount: integer 1-10
   lapCount = tonumber(lapCount)
-  if not lapCount or lapCount ~= math.floor(lapCount) or lapCount < 1 or lapCount > 10 then return end
+  if not lapCount or lapCount ~= math.floor(lapCount) or lapCount < 1 or lapCount > 10 then
+    ServerNotify(src, 'Speedway', 'Invalid lap count (must be 1-10).', 'error')
+    return
+  end
   -- Validate raceClass: must exist in config, default to 'All'
   if raceClass == nil then raceClass = 'All' end
   if type(raceClass) ~= 'string' or not VALID_CLASSES[raceClass] then raceClass = 'All' end

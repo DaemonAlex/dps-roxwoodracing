@@ -674,7 +674,10 @@ RegisterNetEvent('speedway:client:createLobby', function()
     local lapCount   = tonumber(dialog[1]) or 1
     local trackType  = dialog[2]
     local raceClass  = dialog[3] or 'All'
-    local lobbyName = GetPlayerName(PlayerId()) .. "_" .. math.random(1000,9999)
+    local rawName = GetPlayerName(PlayerId()) or "Racer"
+    local safeName = rawName:gsub("[^%w_]", "_"):sub(1, 30)
+    if safeName == "" then safeName = "Racer" end
+    local lobbyName = safeName .. "_" .. math.random(1000,9999)
     if Config.DebugPrints then
         print(string.format("[DEBUG] TriggerServerEvent speedway:createLobby: lobbyName=%s, trackType=%s, lapCount=%s, raceClass=%s", lobbyName, trackType, lapCount, raceClass))
     end
