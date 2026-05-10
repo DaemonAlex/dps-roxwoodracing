@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## v2.4.1 — Lobby Creation Hotfix (2026-05-09)
+
+Fix silent failure when creating a lobby. The auto-generated lobby name was built directly from `GetPlayerName()`, which often contains spaces, brackets, dots, or other characters that the server-side validator rejects (alphanumeric/underscore only). The validator returned silently with no notification, so players saw the dialog close and nothing happen.
+
+### Files Changed
+- `client/c_main.lua` — sanitize the player display name to `[A-Za-z0-9_]` before composing the lobby name; cap at 30 chars; fall back to `Racer` if empty
+- `server/s_main.lua` — the lobby name / track / lap count validators in `speedway:createLobby` now send a `ServerNotify` before returning, so any future validation failure is visible instead of silent
+
+No config, locale, or framework-bridge changes. Affects all frameworks (QBCore / Qbox / ESX / standalone) since the failure was on the validation path, not in the bridge.
+
+---
+
 ## v2.4 — UI Restyle (2026-03-06)
 
 Replaced generic Tailwind-derived colors with a custom motorsport/F1 timing screen palette. The UI now uses a darker carbon background, cyan ghost buttons with glow hover states, and tighter border radii throughout — closer to a proper race timing display than a generic web app.
