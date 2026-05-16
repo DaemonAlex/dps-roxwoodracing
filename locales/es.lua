@@ -1,6 +1,10 @@
 return {
     -- Base strings to match existing code keys
     lobby_exists                = "¡Ya existe un lobby con ese nombre!",
+    invalid_lobby_name          = "Nombre de lobby no válido (alfanumérico/guion bajo, 1-50 caracteres).",
+    invalid_track               = "Selección de pista no válida.",
+    invalid_laps                = "Número de vueltas no válido (debe ser 1-10).",
+    track_in_use                = "Esa pista ya tiene un lobby activo.",
     lobby_created               = "Lobby {1} creado.",
     joined_lobby                = "Te uniste al lobby {1}.",
     lobby_not_found             = "Lobby no encontrado.",

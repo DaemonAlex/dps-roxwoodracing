@@ -603,9 +603,14 @@ RegisterNetEvent('speedway:updateLobbyInfo', function(info)
         hasLobby     = true
         currentLobby = info.name
         lobbyOwner   = info.owner
-        -- Show persistent lobby window with current players
+        -- Show persistent lobby window with current players.
+        -- Prefer server-supplied character names (info.names) over local Steam-name lookup.
         local names = {}
-        if info.players then
+        if info.names then
+            for i, n in ipairs(info.names) do
+                names[i] = (n and n ~= "") and n or ("ID" .. (info.players and info.players[i] or i))
+            end
+        elseif info.players then
             for _, sid in ipairs(info.players) do
                 local pid   = GetPlayerFromServerId(sid)
                 local pname = pid and GetPlayerName(pid) or ("ID"..sid)

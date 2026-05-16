@@ -1,5 +1,9 @@
 return {
   lobby_exists                = "Ein Lobby mit diesem Namen existiert bereits!",
+  invalid_lobby_name          = "Ungültiger Lobby-Name (alphanumerisch/Unterstrich, 1-50 Zeichen).",
+  invalid_track               = "Ungültige Streckenauswahl.",
+  invalid_laps                = "Ungültige Rundenzahl (muss zwischen 1 und 10 liegen).",
+  track_in_use                = "Diese Strecke hat bereits eine aktive Lobby.",
   lobby_created               = "Lobby {1} erstellt.",
   joined_lobby                = "Du bist der Lobby {1} beigetreten.",
   lobby_not_found             = "Lobby nicht gefunden.",

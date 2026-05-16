@@ -1,5 +1,9 @@
 return {
   lobby_exists                = "A lobby with that name already exists!",
+  invalid_lobby_name          = "Invalid lobby name (alphanumeric/underscore, 1-50 chars).",
+  invalid_track               = "Invalid track selection.",
+  invalid_laps                = "Invalid lap count (must be 1-10).",
+  track_in_use                = "That track already has an active lobby.",
   lobby_created               = "Lobby {1} created.",
   joined_lobby                = "You joined lobby {1}.",
   lobby_not_found             = "Lobby not found.",

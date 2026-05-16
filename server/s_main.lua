@@ -205,12 +205,20 @@ local function SaveRaceStats(pid, position, track, bestLap, earnings)
 
   local isWin = position == 1 and 1 or 0
   local isTop3 = position <= 3 and 1 or 0
+  earnings = earnings or 0
 
-  -- Fetch existing best_laps JSON to merge
-  local existing = MySQL.scalar.await('SELECT best_laps FROM speedway_stats WHERE citizenid = ?', { cid })
+  -- Fetch existing row to (a) merge best_laps and (b) compute updated totals
+  -- locally so we can skip a read-back query after the upsert.
+  local existing = MySQL.single.await(
+    'SELECT total_races, wins, best_laps FROM speedway_stats WHERE citizenid = ?',
+    { cid }
+  )
   local bestLaps = {}
+  local prevRaces, prevWins = 0, 0
   if existing then
-    bestLaps = json.decode(existing) or {}
+    bestLaps  = json.decode(existing.best_laps or '{}') or {}
+    prevRaces = existing.total_races or 0
+    prevWins  = existing.wins        or 0
   end
 
   local newRecord = false
@@ -221,6 +229,7 @@ local function SaveRaceStats(pid, position, track, bestLap, earnings)
     end
   end
 
+  local encoded = json.encode(bestLaps)
   MySQL.query.await([[
     INSERT INTO speedway_stats (citizenid, total_races, wins, top3, total_earnings, best_laps, last_race)
     VALUES (?, 1, ?, ?, ?, ?, NOW())
@@ -231,20 +240,16 @@ local function SaveRaceStats(pid, position, track, bestLap, earnings)
       total_earnings = total_earnings + ?,
       best_laps = ?,
       last_race = NOW()
-  ]], { cid, isWin, isTop3, earnings or 0, json.encode(bestLaps), isWin, isTop3, earnings or 0, json.encode(bestLaps) })
+  ]], { cid, isWin, isTop3, earnings, encoded, isWin, isTop3, earnings, encoded })
 
-  -- Get updated stats to notify client
+  -- Notify client without a read-back query: we have all the fields locally.
   if Config.Stats.showAfterRace then
-    local row = MySQL.single.await('SELECT * FROM speedway_stats WHERE citizenid = ?', { cid })
-    if row then
-      local laps = json.decode(row.best_laps or '{}') or {}
-      TriggerClientEvent('speedway:client:statsNotify', pid, {
-        wins = row.wins,
-        totalRaces = row.total_races,
-        bestLap = laps[track],
-        newRecord = newRecord and bestLap or nil,
-      })
-    end
+    TriggerClientEvent('speedway:client:statsNotify', pid, {
+      wins        = prevWins  + isWin,
+      totalRaces  = prevRaces + 1,
+      bestLap     = bestLaps[track],
+      newRecord   = newRecord and bestLap or nil,
+    })
   end
 end
 
@@ -293,6 +298,16 @@ end
 local lobbies        = {}    -- [lobbyName] = { owner, track, laps, players, ... }
 local pendingChoices = {}    -- for vehicle selection
 local amirState      = {}    -- per-lobby AMIR throttle and last state
+
+-- Multi-lobby coordination state:
+--  gridLocked   — held while a lobby is spawning vehicles on the shared start line,
+--                 so a second lobby starting at the same instant waits until the
+--                 first race's cars have cleared the grid.
+--  primaryLobby — the only lobby that can drive the physical AMIR LED scoreboard.
+--                 First started lobby gets it; when that lobby ends, we promote
+--                 the next running lobby.
+local gridLocked   = false
+local primaryLobby = nil
 
 -- Helper: build a license plate string from a player's character name (fallback to Rockstar name)
 -- - Uppercase alphanumerics only
@@ -354,6 +369,25 @@ local function findLobbyByPlayer(pid)
     end
   end
   return nil, nil
+end
+
+-- Helper: build the payload sent to clients in speedway:updateLobbyInfo.
+-- Resolves names via the framework bridge so RP servers see character names
+-- (e.g. "John Smith") instead of Steam display names.
+local function buildLobbyInfo(lobbyName, lob)
+  local names = {}
+  for i, pid in ipairs(lob.players or {}) do
+    names[i] = Bridge.GetPlayerName(pid)
+  end
+  return {
+    name     = lobbyName,
+    hostName = Bridge.GetPlayerName(lob.owner),
+    track    = lob.track,
+    players  = lob.players,
+    owner    = lob.owner,
+    laps     = lob.laps,
+    names    = names,
+  }
 end
 
 -- Admin/host command to change AMIR view mode at runtime
@@ -430,18 +464,18 @@ RegisterNetEvent("speedway:createLobby", function(lobbyName, trackType, lapCount
 
   -- Validate lobbyName: must be a string, 1-50 chars, alphanumeric+underscore only
   if type(lobbyName) ~= 'string' or #lobbyName < 1 or #lobbyName > 50 or lobbyName:find('[^%w_]') then
-    ServerNotify(src, 'Speedway', 'Invalid lobby name (alphanumeric/underscore, 1-50 chars).', 'error')
+    ServerNotify(src, 'Speedway', locale("invalid_lobby_name"), 'error')
     return
   end
   -- Validate trackType: must exist in config
   if type(trackType) ~= 'string' or not VALID_TRACKS[trackType] then
-    ServerNotify(src, 'Speedway', 'Invalid track selection.', 'error')
+    ServerNotify(src, 'Speedway', locale("invalid_track"), 'error')
     return
   end
   -- Validate lapCount: integer 1-10
   lapCount = tonumber(lapCount)
   if not lapCount or lapCount ~= math.floor(lapCount) or lapCount < 1 or lapCount > 10 then
-    ServerNotify(src, 'Speedway', 'Invalid lap count (must be 1-10).', 'error')
+    ServerNotify(src, 'Speedway', locale("invalid_laps"), 'error')
     return
   end
   -- Validate raceClass: must exist in config, default to 'All'
@@ -452,11 +486,14 @@ RegisterNetEvent("speedway:createLobby", function(lobbyName, trackType, lapCount
     print(string.format("[DEBUG] speedway:createLobby received: lobbyName=%s, trackType=%s, lapCount=%s, raceClass=%s, src=%s", lobbyName, trackType, lapCount, tostring(raceClass), src))
   end
 
-  -- Prevent new lobby if any lobby is active
-  if next(lobbies) ~= nil then
-    if Config.DebugPrints then print("[DEBUG] Cannot create lobby: another lobby is already active.") end
-    ServerNotify(src, 'Speedway', locale("lobby_exists"), 'error')
-    return
+  -- Reject if a lobby on the same track is already active.
+  -- (Multiple concurrent lobbies on different tracks are allowed.)
+  for _, existing in pairs(lobbies) do
+    if existing.track == trackType then
+      if Config.DebugPrints then print("[DEBUG] Cannot create lobby: track in use: " .. trackType) end
+      ServerNotify(src, 'Speedway', locale("track_in_use"), 'error')
+      return
+    end
   end
   if lobbies[lobbyName] then
     if Config.DebugPrints then print("[DEBUG] Lobby already exists: " .. lobbyName) end
@@ -488,15 +525,7 @@ RegisterNetEvent("speedway:createLobby", function(lobbyName, trackType, lapCount
 
   -- tell the creator
   ServerNotify(src, 'Speedway', locale("lobby_created", lobbyName), 'success')
-  local hostName = GetPlayerName(src)
-  TriggerClientEvent('speedway:updateLobbyInfo', src, {
-    name      = lobbyName,
-    hostName  = hostName,
-    track     = trackType,
-    players   = lobbies[lobbyName].players,
-    owner     = src,
-    laps      = lobbies[lobbyName].laps
-  })
+  TriggerClientEvent('speedway:updateLobbyInfo', src, buildLobbyInfo(lobbyName, lobbies[lobbyName]))
   TriggerClientEvent('speedway:setLobbyState', -1, next(lobbies) ~= nil)
   if Config.DebugPrints then print("[DEBUG] Lobby info sent to client and lobby state updated.") end
 end)
@@ -535,22 +564,16 @@ RegisterNetEvent("speedway:joinLobby", function(lobbyName)
 
     table.insert(lobby.players, src)
     -- BROADCAST who joined
-    local playerName = GetPlayerName(src)
+    local playerName = Bridge.GetPlayerName(src)
     for _, id in ipairs(lobby.players) do
       TriggerClientEvent("speedway:client:playerJoined", id, playerName)
     end
   end
 
-  -- update everyone’s lobby info
+  -- update everyone's lobby info
+  local info = buildLobbyInfo(lobbyName, lobby)
   for _, id in ipairs(lobby.players) do
-    TriggerClientEvent("speedway:updateLobbyInfo", id, {
-      name     = lobbyName,
-      hostName = GetPlayerName(lobby.owner),
-      track    = lobby.track,
-      players  = lobby.players,
-      owner    = lobby.owner,
-      laps     = lobby.laps
-    })
+    TriggerClientEvent("speedway:updateLobbyInfo", id, info)
   end
 end)
 
@@ -618,18 +641,28 @@ RegisterNetEvent("speedway:leaveLobby", function()
             ServerNotify(player, 'Speedway', locale("lobby_closed_by_owner", name), 'warning')
             TriggerClientEvent("speedway:updateLobbyInfo", player, nil)
           end
+          amirState[name] = nil
           lobbies[name] = nil
+
+          -- If the destroyed lobby owned the AMIR scoreboard, promote the next
+          -- running lobby (or fall back to idle best-times if none).
+          if primaryLobby == name then
+            primaryLobby = nil
+            for nextName, nextLob in pairs(lobbies) do
+              if nextLob.isStarted then
+                primaryLobby = nextName
+                break
+              end
+            end
+            if Config.Leaderboard and Config.Leaderboard.enabled and not primaryLobby then
+              exports['rox_speedway']:ShowIdleLeaderboard()
+            end
+          end
         else
           -- member left → update remaining
+          local info = buildLobbyInfo(name, lobby)
           for _, player in ipairs(lobby.players) do
-            TriggerClientEvent("speedway:updateLobbyInfo", player, {
-              name     = name,
-              hostName = GetPlayerName(lobby.owner),
-              track    = lobby.track,
-              players  = lobby.players,
-              owner    = lobby.owner,
-              laps     = lobby.laps
-            })
+            TriggerClientEvent("speedway:updateLobbyInfo", player, info)
           end
         end
 
@@ -646,6 +679,10 @@ end)
 -- Shared vehicle spawn helper (deduplicates two identical blocks)
 --------------------------------------------------------------------------------
 local function SpawnRaceVehicles(lobbyName, lob, selected)
+  -- Wait for the shared starting grid to clear if another lobby is mid-spawn.
+  while gridLocked do Wait(250) end
+  gridLocked = true
+
   local usedPlates = {}
   local spawnedNetIds = {}
   TriggerClientEvent('rox_speedway:cam:broadcastOn', -1)
@@ -697,6 +734,13 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
       end
     end)
   end
+
+  -- Release the grid lock once cars have had time to clear the start line,
+  -- so a queued second lobby can spawn.
+  CreateThread(function()
+    Wait(8000)
+    gridLocked = false
+  end)
 end
 
 --------------------------------------------------------------------------------
@@ -726,6 +770,11 @@ RegisterNetEvent("speedway:startRace", function(lobbyName)
   lob.lapTimes           = {}
   lob.finished           = {}
 
+  -- The first lobby to start owns the physical AMIR LED scoreboard.
+  -- Concurrent lobbies still race but don't drive the physical board.
+  if not primaryLobby then primaryLobby = lobbyName end
+  local isPrimary = (primaryLobby == lobbyName)
+
   local now = GetGameTimer()
   for _, pid in ipairs(lob.players) do
     lob.startTime[pid]   = now
@@ -733,7 +782,7 @@ RegisterNetEvent("speedway:startRace", function(lobbyName)
     lob.lapTimes[pid]    = {}
   end
 
-  if Config.Leaderboard and Config.Leaderboard.enabled then
+  if Config.Leaderboard and Config.Leaderboard.enabled and isPrimary then
     -- Stop idle best-times display before switching to live race mode
     exports['rox_speedway']:StopIdleLeaderboard()
 
@@ -744,18 +793,15 @@ RegisterNetEvent("speedway:startRace", function(lobbyName)
     amirState[lobbyName] = { last = 0, key = nil, title = nil, lastSwitch = 0, showNames = startShowNames }
     -- ─ Initialize AMIR leaderboard at race start ───────────────────
     do
-  local names, times = {}, {}
+      local names, times = {}, {}
       for i, pid in ipairs(lob.players) do
-        names[i] = GetPlayerName(pid) or ""
+        names[i] = Bridge.GetPlayerName(pid) or ""
         times[i] = 0
       end
       -- pad to exactly 9 entries
       for i = #names + 1, 9 do names[i], times[i] = "", 0 end
-      -- show “1/totalLaps” instead of “0/totalLaps”
+      -- show "1/totalLaps" instead of "0/totalLaps"
       local title = ("1/%d"):format(lob.laps)
-      -- Initialize board according to viewMode
-      local vm = (amirState[lobbyName] and amirState[lobbyName].vm) or (Config.Leaderboard.viewMode or "toggle")
-      if vm == 'times' then vm = 'toggle' end -- coerce unsupported mode
       -- We always initialize with names to avoid flashing
       TriggerEvent("amir-leaderboard:setPlayerNames", title, names)
     end
@@ -950,8 +996,9 @@ RegisterNetEvent("speedway:updateProgress", function(lobbyName, dist)
     end
   end
 
-  -- Update AMIR leaderboard to reflect live positions and current lap/total
-  if Config.Leaderboard and Config.Leaderboard.enabled then
+  -- Update AMIR leaderboard to reflect live positions and current lap/total.
+  -- Only the primary lobby drives the physical LED scoreboard.
+  if Config.Leaderboard and Config.Leaderboard.enabled and primaryLobby == lobbyName then
     local lName = lobbyName
     -- derive a deterministic key for ordering (IDs joined by '-')
     local keyParts = {}
@@ -1002,7 +1049,7 @@ RegisterNetEvent("speedway:updateProgress", function(lobbyName, dist)
       local count = math.min(#board, maxEntries)
       for i = 1, count do
         local pid = board[i].id
-        names[i] = GetPlayerName(pid) or ""
+        names[i] = Bridge.GetPlayerName(pid) or ""
         -- Always provide times for the AMIR toggle view.
         -- Times are milliseconds, AMIR displays them as MM:SS.
         local tmode = (Config.Leaderboard and Config.Leaderboard.timeMode) or "total" -- "total" or "lap"
@@ -1131,7 +1178,7 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
         if best == math.huge then best = 0 end
         results[#results+1] = {
           id = pid,
-          name = GetPlayerName(pid) or ("Player " .. pid),
+          name = Bridge.GetPlayerName(pid) or ("Player " .. pid),
           time = sum,
           bestLap = best,
           lapTimes = lob.lapTimes[pid],
@@ -1190,12 +1237,15 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
       -- Distribute entry fee prize pool
       DistributePrizePool(lob, results)
 
-      -- Save persistent race stats for each player
+      -- Save persistent race stats for each player.
+      -- Each call is wrapped in CreateThread so the per-player DB queries
+      -- run concurrently instead of serializing on a full grid.
       for pos, entry in ipairs(results) do
-        -- Calculate total earnings for this player
         local totalEarnings = entry.payout or 0
-
-        SaveRaceStats(entry.id, pos, lob.track, entry.bestLap or 0, totalEarnings)
+        local pidLocal, posLocal, bestLapLocal = entry.id, pos, entry.bestLap or 0
+        CreateThread(function()
+          SaveRaceStats(pidLocal, posLocal, lob.track, bestLapLocal, totalEarnings)
+        end)
       end
 
       -- Race fully concluded: switch jumbotron back to IDLE for everyone
@@ -1203,11 +1253,25 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
       -- Reset leader tracking for this lobby
       lob.lastLeader = -1
 
+      amirState[lobbyName] = nil
       lobbies[lobbyName] = nil
       TriggerClientEvent("speedway:setLobbyState", -1, next(lobbies) ~= nil)
 
-      -- Resume idle best-times display on the leaderboard
-      if Config.Leaderboard and Config.Leaderboard.enabled then
+      -- If this was the primary lobby, promote the next active lobby to drive
+      -- the physical AMIR LED scoreboard. If none is running, resume the idle
+      -- best-times display.
+      local wasPrimary = (primaryLobby == lobbyName)
+      if wasPrimary then
+        primaryLobby = nil
+        for nextName, nextLob in pairs(lobbies) do
+          if nextLob.isStarted then
+            primaryLobby = nextName
+            break
+          end
+        end
+      end
+
+      if Config.Leaderboard and Config.Leaderboard.enabled and wasPrimary and not primaryLobby then
         exports['rox_speedway']:ShowIdleLeaderboard()
       end
     end

@@ -1,5 +1,9 @@
 return {
   lobby_exists                = "Un salon de ce nom existe déjà !",
+  invalid_lobby_name          = "Nom de salon invalide (alphanumérique/underscore, 1-50 caractères).",
+  invalid_track               = "Sélection de circuit invalide.",
+  invalid_laps                = "Nombre de tours invalide (doit être entre 1 et 10).",
+  track_in_use                = "Ce circuit a déjà un salon actif.",
   lobby_created               = "Salon {1} créé.",
   joined_lobby                = "Vous avez rejoint le salon {1}.",
   lobby_not_found             = "Salon introuvable.",

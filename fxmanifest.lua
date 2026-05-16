@@ -44,6 +44,7 @@ this_is_a_map 'yes'
 
 dependencies {
     'ox_lib',
+    'oxmysql',
     -- Optional: 'qb-core', 'qbx_core', or 'es_extended' (auto-detected; used for rewards, stats, plates)
     -- Optional: target system - 'ox_target' or 'qb-target' (configure in config.lua)
 }

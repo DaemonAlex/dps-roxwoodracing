@@ -304,6 +304,7 @@ CREATE TABLE IF NOT EXISTS speedway_stats (
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history. Recent highlights:
 
+- **v2.4.2** - Multiple concurrent races on different tracks; RP character names in lobby/scoreboard/results; full translations for v2.4.1 errors; faster end-of-race DB saves
 - **v2.4.1** - Hotfix: lobby creation no longer fails silently when player display name contains special characters
 - **v2.4** - Motorsport UI restyle, custom font (Barlow Condensed), tighter design language
 - **v2.3** - Ghosting system, race results overlay, expanded results payload
