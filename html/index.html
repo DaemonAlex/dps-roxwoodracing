@@ -12,8 +12,8 @@
     .header { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.10); font-weight: 600; display:flex; align-items:center; gap:8px; }
     .body { padding: 16px; line-height: 1.5; color: #e9eef7; }
     .actions { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.10); display: flex; justify-content: flex-end; gap: 8px; }
-    button { background: rgba(0,194,255,0.14); color: #00c2ff; border: 1px solid rgba(0,194,255,0.45); border-radius: 4px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
-    button:hover { background: rgba(0,194,255,0.25); box-shadow: 0 0 12px rgba(0,194,255,0.3); }
+    button { background: rgba(255,122,69,0.14); color: #ff7a45; border: 1px solid rgba(255,122,69,0.45); border-radius: 4px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
+    button:hover { background: rgba(255,122,69,0.25); box-shadow: 0 0 12px rgba(255,122,69,0.3); }
     .titleIcon { font-size: 18px; }
 
     /* Lobby tablet styles */
@@ -54,8 +54,8 @@
     .host { color: var(--host); font-weight:700; }
     .waiting { text-align:center; color: var(--muted); font-size:14px; padding:12px; }
   .lobbyActions { display:flex; gap:8px; justify-content:flex-end; margin-top: 8px; }
-  .btn { background:rgba(0,194,255,0.14); color:#00c2ff; border:1px solid rgba(0,194,255,0.45); border-radius:4px; padding:10px 12px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.25); }
-  .btn:hover { background:rgba(0,194,255,0.25); box-shadow:0 0 12px rgba(0,194,255,0.3); }
+  .btn { background:rgba(255,122,69,0.14); color:#ff7a45; border:1px solid rgba(255,122,69,0.45); border-radius:4px; padding:10px 12px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.25); }
+  .btn:hover { background:rgba(255,122,69,0.25); box-shadow:0 0 12px rgba(255,122,69,0.3); }
   .btn-secondary { background:rgba(255,255,255,0.06); color:#e9eef7; border:1px solid rgba(255,255,255,0.12); }
   .btn-secondary:hover { background:rgba(255,255,255,0.10); }
   .hint { font-size:12px; color: var(--muted); text-align:right; margin-top: 6px; }
@@ -111,17 +111,30 @@
   }
   .results-footer .dismiss-hint { font-size: 12px; color: var(--muted); }
   .results-footer .btn-close {
-    background: rgba(0,194,255,0.14); color: #00c2ff; border: 1px solid rgba(0,194,255,0.45); border-radius: 4px;
+    background: rgba(255,122,69,0.14); color: #ff7a45; border: 1px solid rgba(255,122,69,0.45); border-radius: 4px;
     padding: 10px 20px; font-weight: 700; cursor: pointer;
     box-shadow: 0 2px 8px rgba(0,0,0,0.25);
   }
-  .results-footer .btn-close:hover { background: rgba(0,194,255,0.25); box-shadow: 0 0 12px rgba(0,194,255,0.3); }
-  </style>
+  .results-footer .btn-close:hover { background: rgba(255,122,69,0.25); box-shadow: 0 0 12px rgba(255,122,69,0.3); }
+    .hud{position:fixed;left:50%;bottom:3vh;transform:translateX(-50%);display:flex;gap:18px;font-family:'Barlow Condensed',sans-serif;color:#f4f1ea;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+  .hud[hidden]{display:none}
+  .hud>div{background:rgba(27,35,64,.78);border-left:4px solid #ff7a45;padding:6px 14px;min-width:96px}
+  .hud-label{font-size:12px;letter-spacing:.14em;color:#aeb6d2;display:block}
+  .hud-pos span:nth-child(2),.hud-lap span:nth-child(2){font-size:34px;font-weight:700;line-height:1}
+  .hud-of{font-size:18px;color:#aeb6d2;margin-left:2px}
+  .select-timer{position:fixed;top:10vh;left:50%;transform:translateX(-50%);background:rgba(27,35,64,.85);color:#ffcc80;border:2px solid #ff7a45;padding:8px 18px;font-family:'Barlow Condensed',sans-serif;font-size:22px}
+  .select-timer[hidden]{display:none}
+</style>
 </head>
 <body>
+  <div id="hud" class="hud" hidden>
+    <div class="hud-pos"><span class="hud-label">POS</span><span id="hudPos">1</span><span class="hud-of">/<span id="hudTotal">1</span></span></div>
+    <div class="hud-lap"><span class="hud-label">LAP</span><span id="hudLap">1</span><span class="hud-of">/<span id="hudLaps">1</span></span></div>
+  </div>
+  <div id="selectTimer" class="select-timer" hidden>Pick your car: <span id="selectSeconds">30</span>s</div>
   <div class="overlay" id="overlay">
     <div class="card">
-      <div class="header"><span class="titleIcon">🏁</span> Speedway</div>
+      <div class="header"><span class="titleIcon">🏁</span> Roxwood Raceway</div>
       <div class="body" id="msg">You were removed. Please click Dismiss to continue.</div>
       <div class="actions">
         <button id="dismiss">Dismiss</button>
@@ -219,9 +232,22 @@
           icon.className = 'titleIcon';
           icon.textContent = '\u{1F3C1}';
           hdr.appendChild(icon);
-          hdr.appendChild(document.createTextNode(' ' + (I18N.speedwayTitle || 'Speedway')));
+          hdr.appendChild(document.createTextNode(' ' + (I18N.speedwayTitle || 'Roxwood Raceway')));
         }
         dismiss.textContent = I18N.modalDismiss || 'Dismiss';
+      } else if (data.action === 'hud') {
+        const hud = document.getElementById('hud');
+        document.getElementById('hudPos').textContent = data.position;
+        document.getElementById('hudTotal').textContent = data.total;
+        document.getElementById('hudLap').textContent = data.lap;
+        document.getElementById('hudLaps').textContent = data.laps;
+        hud.hidden = !data.visible;
+      } else if (data.action === 'hudHide') {
+        document.getElementById('hud').hidden = true;
+      } else if (data.action === 'selectCountdown') {
+        const el = document.getElementById('selectTimer');
+        if (data.seconds === null || data.seconds === undefined || data.seconds <= 0) { el.hidden = true; }
+        else { document.getElementById('selectSeconds').textContent = data.seconds; el.hidden = false; }
       } else if (data.action === 'showTimeoutModal') {
         msg.textContent = data.message || I18N.modalRemoved || 'You were removed.';
         overlay.style.display = 'flex';

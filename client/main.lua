@@ -82,30 +82,6 @@ local function CloseVehicleSelectionUI()
     end)
 end
 
-CreateThread(function()
-    while true do
-        Wait(0)
-        if lobbyDisplayActive then
-            -- Draw background (scaled down, moved further left)
-            DrawRect(0.10, 0.5, 0.16, 0.09, 20, 20, 20, 200) -- x=0.10 (further left), y=0.5 (middle), width=0.16, height=0.09
-            -- Draw title
-            SetTextFont(4); SetTextScale(0.35,0.35); SetTextCentre(true)
-            SetTextColour(255,255,255,255); SetTextOutline()
-            SetTextEntry("STRING")
-            AddTextComponentString((Locale("lobby_word") .. ": " .. lobbyDisplayName))
-            DrawText(0.10, 0.44)
-            -- Draw member list
-            for i, member in ipairs(lobbyDisplayMembers) do
-                SetTextFont(0); SetTextScale(0.25,0.25); SetTextCentre(false)
-                SetTextColour(255,255,255,255); SetTextOutline()
-                SetTextEntry("STRING")
-                local label = member .. (i == 1 and (" " .. Locale("host_tag")) or "")
-                AddTextComponentString(label)
-                DrawText(0.02, 0.47 + (i * 0.015))
-            end
-        end
-    end
-end)
 -- NUI readiness handshake
 RegisterNUICallback('nuiReady', function(_, cb)
     nuiReady = true
@@ -629,12 +605,11 @@ end)
 
 -- Vehicle selection countdown overlay
 local selectCountdownActive = false
-local selectCountdownRemain = 0
 local timeoutModalActive = false
 
 RegisterNetEvent("dps-roxwoodracing:vehicleSelectCountdown", function(remaining)
     selectCountdownActive = remaining and remaining > 0
-    selectCountdownRemain = remaining or 0
+    Hud.SelectCountdown(selectCountdownActive and remaining or nil)
     if selectCountdownActive == false then
         CloseVehicleSelectionUI()
     end
@@ -643,22 +618,10 @@ end)
 -- If race proceeds, ensure countdown hides
 AddEventHandler("dps-roxwoodracing:prepareStart", function()
     selectCountdownActive = false
+    Hud.SelectCountdown(nil)
     CloseVehicleSelectionUI()
 end)
 
-CreateThread(function()
-    while true do
-        Wait(0)
-        if selectCountdownActive then
-            local sec = math.max(0, tonumber(selectCountdownRemain) or 0)
-            SetTextFont(4); SetTextScale(0.5,0.5); SetTextCentre(true)
-            SetTextColour(255,200,50,255); SetTextOutline()
-            SetTextEntry("STRING")
-            AddTextComponentString((Locale('select_vehicle_timer_fmt')):format(sec))
-            DrawText(0.5, 0.12)
-        end
-    end
-end)
 
 -- Notify if kicked due to timeout
 RegisterNetEvent("dps-roxwoodracing:kickedFromLobby", function(lobbyName, reason)
@@ -752,6 +715,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
     -- Initialize HUD lap counters using payload laps so HUD shows 1/x from start
     currentLap   = 1
     totalLaps    = tonumber(data.laps) or totalLaps or 1
+    Hud.ShowRace(0, 0, 1, totalLaps)
 
     -- clear old props
     TriggerEvent("dps-roxwoodracing:client:destroyprops")
@@ -809,7 +773,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
         local deadline = GetGameTimer() + 15000
         while not NetworkDoesNetworkIdExist(data.netId) do
           if GetGameTimer() > deadline then
-            Notify("Speedway", "Vehicle failed to spawn. Please try again.", "error", 5000)
+            Notify(Config.Job.label, "Vehicle failed to spawn. Please try again.", "error", 5000)
             inRace = false
             return
           end
@@ -818,7 +782,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
         local veh = NetworkGetEntityFromNetworkId(data.netId)
         while not DoesEntityExist(veh) do
           if GetGameTimer() > deadline then
-            Notify("Speedway", "Vehicle failed to spawn. Please try again.", "error", 5000)
+            Notify(Config.Job.label, "Vehicle failed to spawn. Please try again.", "error", 5000)
             inRace = false
             return
           end
@@ -959,6 +923,7 @@ end)
 
 -- Cleanup: remove spawned props and any active checkpoint/finish zones
 RegisterNetEvent("dps-roxwoodracing:client:destroyprops", function()
+    Hud.HideRace()
     -- End ghosting
     ghostActive = false
     raceNetIds = {}
@@ -979,13 +944,8 @@ RegisterNetEvent("dps-roxwoodracing:client:destroyprops", function()
     currentZones = {}
 end)
 
--- Manual cleanup command (optional): removes any spawned props/zones immediately
-RegisterCommand('speedway_cleanup', function()
-    TriggerEvent('dps-roxwoodracing:client:destroyprops')
-end, false)
-
 RegisterNetEvent("dps-roxwoodracing:youFinished", function()
-    Notify("🏁 Speedway", Locale("you_finished"), "success", 5000)
+    Notify(Config.Job.label, Locale("you_finished"), "success", 5000)
 end)
 
 --------------------------------------------------------------------------------
@@ -1021,9 +981,9 @@ RegisterNetEvent("dps-roxwoodracing:finalRanking", function(data)
 
     local totalTime = math.floor((data.totalTime or 0)/1000)
     if data.position == 1 then
-        Notify("🏆 Speedway", Locale("you_won", totalTime), "success", 5000)
+        Notify(Config.Job.label, Locale("you_won", totalTime), "success", 5000)
     else
-        Notify("🏁 Speedway", Locale("you_placed", data.position, #results, totalTime), "inform", 5000)
+        Notify(Config.Job.label, Locale("you_placed", data.position, #results, totalTime), "inform", 5000)
     end
     if data.lapTimes then
         local lapLines = { Locale("lap_summary") }
@@ -1044,8 +1004,9 @@ end)
 --------------------------------------------------------------------------------
 -- 15) FINISH TELEPORT
 --------------------------------------------------------------------------------
-RegisterNetEvent("dps-roxwoodracing:client:finishTeleport", function(coords)
+RegisterNetEvent("dps-roxwoodracing:client:finishTeleport", function(coords, keepVehicle)
     inRace = false
+    Hud.HideRace()
     ghostActive = false
     myRaceVeh = nil
     CreateThread(function()
@@ -1073,56 +1034,37 @@ currentLap, totalLaps = currentLap or 1, totalLaps or 1
 
 RegisterNetEvent("dps-roxwoodracing:updateLap", function(cur, tot)
     currentLap, totalLaps = cur, tot
-    Notify("🏁 Speedway", ("Lap %s/%s"):format(cur, tot), "inform", 3000)
+    Hud.UpdateLap(cur, tot)
 end)
 
 RegisterNetEvent("dps-roxwoodracing:updatePosition", function(position, total)
     myPosition = position
     totalRacers = total
+    Hud.UpdatePosition(position, total)
     if Config.DebugPrints then
         print(("[DEBUG] updatePosition myPosition=%s total=%s"):format(tostring(myPosition), tostring(totalRacers)))
     end
 end)
 
-CreateThread(function()
-    while true do
-        Wait(0)
-        if inRace then
-            -- Draw position/rank
-            SetTextFont(4); SetTextScale(0.5,0.5); SetTextCentre(true)
-            SetTextColour(255,255,255,255); SetTextOutline()
-            SetTextEntry("STRING")
-            AddTextComponentString( ("Position: %d/%d"):format(myPosition, totalRacers) )
-            DrawText(0.5, 0.93)
-
-            -- Draw lap info
-            SetTextFont(4); SetTextScale(0.45,0.45); SetTextCentre(true)
-            SetTextColour(255,255,255,255); SetTextOutline()
-            SetTextEntry("STRING")
-            AddTextComponentString( ("Lap: %d/%d"):format(currentLap, totalLaps) )
-            DrawText(0.5, 0.96)
-        end
-    end
-end)
 
 --------------------------------------------------------------------------------
 -- REWARD NOTIFICATIONS
 --------------------------------------------------------------------------------
 RegisterNetEvent('dps-roxwoodracing:client:rewardNotify', function(data)
     if data.positionPayout and data.positionPayout > 0 then
-        Notify("Speedway", Locale("reward_cash", data.positionPayout, data.positionLabel or ""), "success", 5000)
+        Notify(Config.Job.label, Locale("reward_cash", data.positionPayout, data.positionLabel or ""), "success", 5000)
     end
     if data.participation and data.participation > 0 then
-        Notify("Speedway", Locale("reward_participation", data.participation), "inform", 4000)
+        Notify(Config.Job.label, Locale("reward_participation", data.participation), "inform", 4000)
     end
     if data.bestLapBonus and data.bestLapBonus > 0 then
-        Notify("Speedway", Locale("reward_best_lap", data.bestLapBonus), "success", 5000)
+        Notify(Config.Job.label, Locale("reward_best_lap", data.bestLapBonus), "success", 5000)
     end
     if data.vehiclePrize then
-        Notify("Speedway", Locale("reward_vehicle", data.vehiclePrize), "success", 8000)
+        Notify(Config.Job.label, Locale("reward_vehicle", data.vehiclePrize), "success", 8000)
     end
     if data.poolPayout and data.poolPayout > 0 then
-        Notify("Speedway", Locale("prize_pool_payout", data.poolPayout), "success", 5000)
+        Notify(Config.Job.label, Locale("prize_pool_payout", data.poolPayout), "success", 5000)
     end
 end)
 
@@ -1131,11 +1073,11 @@ end)
 --------------------------------------------------------------------------------
 RegisterNetEvent('dps-roxwoodracing:client:statsNotify', function(data)
     if data.newRecord then
-        Notify("Speedway", Locale("stats_new_record", string.format("%.1f", data.newRecord / 1000)), "success", 6000)
+        Notify(Config.Job.label, Locale("stats_new_record", string.format("%.1f", data.newRecord / 1000)), "success", 6000)
     end
     if data.wins and data.totalRaces then
         local bestStr = data.bestLap and string.format("%.1f", data.bestLap / 1000) or "N/A"
-        Notify("Speedway", Locale("stats_summary", data.wins, data.totalRaces, bestStr), "inform", 8000)
+        Notify(Config.Job.label, Locale("stats_summary", data.wins, data.totalRaces, bestStr), "inform", 8000)
     end
 end)
 
@@ -1143,7 +1085,7 @@ end)
 RegisterCommand('racestats', function()
     local stats = lib.callback.await('dps-roxwoodracing:getPlayerStats', false)
     if not stats then
-        Notify("Speedway", "No stats found.", "error", 3000)
+        Notify(Config.Job.label, "No stats found.", "error", 3000)
         return
     end
     local lines = { Locale("stats_command_header") }
