@@ -1,4 +1,17 @@
-return {
+Config = Config or {}
+Config.LocaleTable = {
+  mode_spec = 'Spec (track cars)',
+  mode_open = 'Open (your own car)',
+  select_mode = 'Race mode',
+  select_open_class = 'Allowed vehicle class',
+  select_tune = 'Tune',
+  open_need_vehicle = 'Sit in a vehicle you own to join an Open race.',
+  open_not_owner = 'That vehicle is not registered to you.',
+  open_wrong_class = 'That vehicle is not in the {1} class.',
+  purse_short = 'The raceway account could not cover the purse this race. Pool only.',
+  staff_only = 'Raceway staff only.',
+  raceway_control = 'Raceway Control',
+  race_ended_by_staff = 'Race ended by raceway staff.',
   lobby_exists                = "A lobby with that name already exists!",
   invalid_lobby_name          = "Invalid lobby name (alphanumeric/underscore, 1-50 chars).",
   invalid_track               = "Invalid track selection.",
@@ -69,3 +82,4 @@ return {
   stats_new_record            = "NEW TRACK RECORD: {1}s!",
   stats_command_header        = "Your Race Stats",
 }
+return Config.LocaleTable
