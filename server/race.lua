@@ -3,14 +3,6 @@
 -- Config is a shared global
 -- Bridge (loaded before this file via fxmanifest) provides: Bridge.Framework,
 -- Bridge.GetPlayerIdentifier(), Bridge.AddMoney(), etc.
-local localeTable = require("locales." .. Config.Locale)
-local function locale(key, ...)
-  local str = localeTable[key] or key
-  local args = { ... }
-  return (str:gsub("{(%d+)}", function(n)
-    return tostring(args[tonumber(n)] or "")
-  end))
-end
 
 --------------------------------------------------------------------------------
 -- server-side notification helper (routes through client SpeedwayNotify)
@@ -275,11 +267,11 @@ local function ChargeEntryFee(pid)
   if amount <= 0 then return true end
   local moneyType = Config.EntryFee.moneyType or 'cash'
   if Bridge.GetMoney(pid, moneyType) < amount then
-    ServerNotify(pid, 'Speedway', locale("entry_fee_insufficient", amount), 'error')
+    ServerNotify(pid, 'Speedway', Locale("entry_fee_insufficient", amount), 'error')
     return false
   end
   Bridge.RemoveMoney(pid, moneyType, amount, 'speedway-entryfee')
-  ServerNotify(pid, 'Speedway', locale("entry_fee_charged", amount), 'inform')
+  ServerNotify(pid, 'Speedway', Locale("entry_fee_charged", amount), 'inform')
   return true
 end
 
@@ -289,7 +281,7 @@ local function RefundEntryFee(pid)
   local amount = Config.EntryFee.amount or 0
   if amount <= 0 then return end
   Bridge.AddMoney(pid, Config.EntryFee.moneyType or 'cash', amount, 'speedway-entryfee-refund')
-  ServerNotify(pid, 'Speedway', locale("entry_fee_refunded", amount), 'success')
+  ServerNotify(pid, 'Speedway', Locale("entry_fee_refunded", amount), 'success')
 end
 
 --------------------------------------------------------------------------------
@@ -431,7 +423,7 @@ RegisterCommand('lb', function(src, args)
   amirState[lobbyName].showNames = true -- always start on names view
 
   local msg = ('AMIR view mode set to %s for lobby %s'):format(mode, tostring(lobbyName))
-  if src == 0 then print('[dps-roxwoodracing] ' .. msg) else ServerNotify(src, locale('speedway_title'), msg, 'success') end
+  if src == 0 then print('[dps-roxwoodracing] ' .. msg) else ServerNotify(src, Locale('speedway_title'), msg, 'success') end
 end, false)
 
 math.randomseed(GetGameTimer())
@@ -443,7 +435,7 @@ lib.callback.register("dps-roxwoodracing:getLobbies", function(source)
   local result = {}
   for name, lobby in pairs(lobbies) do
     table.insert(result, {
-      label = locale("lobby_label_template", name, lobby.track, #lobby.players),
+      label = Locale("lobby_label_template", name, lobby.track, #lobby.players),
       value = name
     })
   end
@@ -464,18 +456,18 @@ RegisterNetEvent("dps-roxwoodracing:createLobby", function(lobbyName, trackType,
 
   -- Validate lobbyName: must be a string, 1-50 chars, alphanumeric+underscore only
   if type(lobbyName) ~= 'string' or #lobbyName < 1 or #lobbyName > 50 or lobbyName:find('[^%w_]') then
-    ServerNotify(src, 'Speedway', locale("invalid_lobby_name"), 'error')
+    ServerNotify(src, 'Speedway', Locale("invalid_lobby_name"), 'error')
     return
   end
   -- Validate trackType: must exist in config
   if type(trackType) ~= 'string' or not VALID_TRACKS[trackType] then
-    ServerNotify(src, 'Speedway', locale("invalid_track"), 'error')
+    ServerNotify(src, 'Speedway', Locale("invalid_track"), 'error')
     return
   end
   -- Validate lapCount: integer 1-10
   lapCount = tonumber(lapCount)
   if not lapCount or lapCount ~= math.floor(lapCount) or lapCount < 1 or lapCount > 10 then
-    ServerNotify(src, 'Speedway', locale("invalid_laps"), 'error')
+    ServerNotify(src, 'Speedway', Locale("invalid_laps"), 'error')
     return
   end
   -- Validate raceClass: must exist in config, default to 'All'
@@ -491,13 +483,13 @@ RegisterNetEvent("dps-roxwoodracing:createLobby", function(lobbyName, trackType,
   for _, existing in pairs(lobbies) do
     if existing.track == trackType then
       if Config.DebugPrints then print("[DEBUG] Cannot create lobby: track in use: " .. trackType) end
-      ServerNotify(src, 'Speedway', locale("track_in_use"), 'error')
+      ServerNotify(src, 'Speedway', Locale("track_in_use"), 'error')
       return
     end
   end
   if lobbies[lobbyName] then
     if Config.DebugPrints then print("[DEBUG] Lobby already exists: " .. lobbyName) end
-    ServerNotify(src, 'Speedway', locale("lobby_exists"), 'error')
+    ServerNotify(src, 'Speedway', Locale("lobby_exists"), 'error')
     return
   end
 
@@ -524,7 +516,7 @@ RegisterNetEvent("dps-roxwoodracing:createLobby", function(lobbyName, trackType,
   if Config.DebugPrints then print("[DEBUG] Lobby created: " .. lobbyName) end
 
   -- tell the creator
-  ServerNotify(src, 'Speedway', locale("lobby_created", lobbyName), 'success')
+  ServerNotify(src, 'Speedway', Locale("lobby_created", lobbyName), 'success')
   TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', src, buildLobbyInfo(lobbyName, lobbies[lobbyName]))
   TriggerClientEvent('dps-roxwoodracing:setLobbyState', -1, next(lobbies) ~= nil)
   if Config.DebugPrints then print("[DEBUG] Lobby info sent to client and lobby state updated.") end
@@ -539,7 +531,7 @@ RegisterNetEvent("dps-roxwoodracing:joinLobby", function(lobbyName)
 
   local lobby = lobbies[lobbyName]
   if not lobby then
-    ServerNotify(src, 'Speedway', locale("lobby_not_found"), 'error')
+    ServerNotify(src, 'Speedway', Locale("lobby_not_found"), 'error')
     return
   end
   if lobby.isStarted then
@@ -638,7 +630,7 @@ RegisterNetEvent("dps-roxwoodracing:leaveLobby", function()
             if not lobby.isStarted then
               RefundEntryFee(player)
             end
-            ServerNotify(player, 'Speedway', locale("lobby_closed_by_owner", name), 'warning')
+            ServerNotify(player, 'Speedway', Locale("lobby_closed_by_owner", name), 'warning')
             TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", player, nil)
           end
           amirState[name] = nil
@@ -752,11 +744,11 @@ RegisterNetEvent("dps-roxwoodracing:startRace", function(lobbyName)
 
   local lob = lobbies[lobbyName]
   if not lob then
-    ServerNotify(src, 'Speedway', locale("lobby_not_found"), 'error')
+    ServerNotify(src, 'Speedway', Locale("lobby_not_found"), 'error')
     return
   end
   if lob.owner ~= src then
-    ServerNotify(src, 'Speedway', locale("not_authorized_to_start_race"), 'error')
+    ServerNotify(src, 'Speedway', Locale("not_authorized_to_start_race"), 'error')
     return
   end
   if lob.isStarted then return end
@@ -841,7 +833,7 @@ RegisterNetEvent("dps-roxwoodracing:startRace", function(lobbyName)
       for i = #lob.players, 1, -1 do
         local pid = lob.players[i]
         if not data.selected[pid] then
-          ServerNotify(pid, 'Speedway', locale("vehicle_select_timeout"), 'warning')
+          ServerNotify(pid, 'Speedway', Locale("vehicle_select_timeout"), 'warning')
           TriggerClientEvent("dps-roxwoodracing:kickedFromLobby", pid, lobbyName, "timeout")
           table.remove(lob.players, i)
         else
@@ -863,7 +855,7 @@ RegisterNetEvent("dps-roxwoodracing:startRace", function(lobbyName)
       -- Ensure broadcast turns off if it was turned on earlier for this lobby
       TriggerClientEvent('dps-roxwoodracing:cam:broadcastOff', -1)
       for _, pid in ipairs(lob.players) do
-        ServerNotify(pid, 'Speedway', locale("race_cancelled"), 'error')
+        ServerNotify(pid, 'Speedway', Locale("race_cancelled"), 'error')
       end
     end
   end)

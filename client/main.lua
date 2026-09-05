@@ -1,14 +1,6 @@
 -- client/c_main.lua
 
 -- Config is a shared global
-local localeTable = require("locales." .. Config.Locale)
-local function loc(key, ...)
-    local str = localeTable[key] or key
-    local args = { ... }
-    return (str:gsub("{(%d+)}", function(n)
-        return tostring(args[tonumber(n)] or "")
-    end))
-end
 
 --------------------------------------------------------------------------------
 -- 2) FUEL MODULE (moved to client/c_fuel.lua)
@@ -59,9 +51,9 @@ function ShowLobbyDisplay(name, members)
     if not lobbyHintShown then
         lobbyHintShown = true
         if SpeedwayNotify then
-            SpeedwayNotify(loc("player_joined_title"), loc("notify_interact_full", (Config.InteractKeyLabel or 'F2')), "inform", 7000)
+            SpeedwayNotify(Locale("player_joined_title"), Locale("notify_interact_full", (Config.InteractKeyLabel or 'F2')), "inform", 7000)
         else
-            print(("[dps-roxwoodracing] " .. loc("hint_interact", (Config.InteractKeyLabel or 'F2'))))
+            print(("[dps-roxwoodracing] " .. Locale("hint_interact", (Config.InteractKeyLabel or 'F2'))))
         end
     end
 end
@@ -100,14 +92,14 @@ CreateThread(function()
             SetTextFont(4); SetTextScale(0.35,0.35); SetTextCentre(true)
             SetTextColour(255,255,255,255); SetTextOutline()
             SetTextEntry("STRING")
-            AddTextComponentString((loc("lobby_word") .. ": " .. lobbyDisplayName))
+            AddTextComponentString((Locale("lobby_word") .. ": " .. lobbyDisplayName))
             DrawText(0.10, 0.44)
             -- Draw member list
             for i, member in ipairs(lobbyDisplayMembers) do
                 SetTextFont(0); SetTextScale(0.25,0.25); SetTextCentre(false)
                 SetTextColour(255,255,255,255); SetTextOutline()
                 SetTextEntry("STRING")
-                local label = member .. (i == 1 and (" " .. loc("host_tag")) or "")
+                local label = member .. (i == 1 and (" " .. Locale("host_tag")) or "")
                 AddTextComponentString(label)
                 DrawText(0.02, 0.47 + (i * 0.015))
             end
@@ -121,16 +113,16 @@ RegisterNUICallback('nuiReady', function(_, cb)
     SendNUIMessage({
         action = 'i18n',
         i18n = {
-            speedwayTitle = loc('speedway_title'),
-            lobby         = loc('lobby_word'),
-            playerHeader  = loc('player_header'),
-            waiting       = loc('waiting_for_players'),
-            leave         = loc('leave_lobby'),
-            start         = loc('start_race'),
-            hostTag       = loc('host_tag'),
-            hintTemplate  = loc('hint_interact', '{KEY}'),
-            modalRemoved  = loc('removed_modal_message'),
-            modalDismiss  = loc('dismiss'),
+            speedwayTitle = Locale('speedway_title'),
+            lobby         = Locale('lobby_word'),
+            playerHeader  = Locale('player_header'),
+            waiting       = Locale('waiting_for_players'),
+            leave         = Locale('leave_lobby'),
+            start         = Locale('start_race'),
+            hostTag       = Locale('host_tag'),
+            hintTemplate  = Locale('hint_interact', '{KEY}'),
+            modalRemoved  = Locale('removed_modal_message'),
+            modalDismiss  = Locale('dismiss'),
         }
     })
     if cb then cb({ ok = true }) end
@@ -165,11 +157,11 @@ RegisterCommand('lobby', function()
     if lobbyNuiVisible and not inRace and not timeoutModalActive then
         ToggleLobbyInteract()
     else
-    SpeedwayNotify(loc("speedway_title"), loc("lobby_controls_only_visible"), "error", 3500)
+    SpeedwayNotify(Locale("speedway_title"), Locale("lobby_controls_only_visible"), "error", 3500)
     end
 end, false)
 -- Default keybind: Left Alt (LMENU). Players can remap via FiveM key bindings.
-RegisterKeyMapping('speedway_lobby_interact', loc('keybind_interact_label'), 'keyboard', Config.InteractKey or 'F2')
+RegisterKeyMapping('speedway_lobby_interact', Locale('keybind_interact_label'), 'keyboard', Config.InteractKey or 'F2')
 
 -- Removed qb-target lobbyInteract event: interaction now uses F6 toggle only
 
@@ -532,7 +524,7 @@ CreateThread(function()
                 name = 'speedway_create_lobby',
                 event = 'dps-roxwoodracing:client:createLobby',
                 icon = 'fa-solid fa-flag-checkered',
-                label = loc("create_lobby"),
+                label = Locale("create_lobby"),
                 canInteract = function() return not hasLobby end,
                 distance = 2.5,
             },
@@ -540,7 +532,7 @@ CreateThread(function()
                 name = 'speedway_join_lobby',
                 event = 'dps-roxwoodracing:client:joinLobby',
                 icon = 'fa-solid fa-user-plus',
-                label = loc("join_lobby"),
+                label = Locale("join_lobby"),
                 canInteract = function() return hasLobby and not currentLobby end,
                 distance = 2.5,
             },
@@ -548,8 +540,8 @@ CreateThread(function()
     elseif targetSystem == 'qb-target' and hasResource('qb-target') then
         exports['qb-target']:AddTargetEntity(ped, {
             options = {
-                { event = 'dps-roxwoodracing:client:createLobby', icon = 'fa-solid fa-flag-checkered', label = loc("create_lobby"), canInteract = function() return not hasLobby end },
-                { event = 'dps-roxwoodracing:client:joinLobby',   icon = 'fa-solid fa-user-plus',         label = loc("join_lobby"),   canInteract = function() return hasLobby and not currentLobby end },
+                { event = 'dps-roxwoodracing:client:createLobby', icon = 'fa-solid fa-flag-checkered', label = Locale("create_lobby"), canInteract = function() return not hasLobby end },
+                { event = 'dps-roxwoodracing:client:joinLobby',   icon = 'fa-solid fa-user-plus',         label = Locale("join_lobby"),   canInteract = function() return hasLobby and not currentLobby end },
             },
             distance = 2.5
         })
@@ -566,12 +558,12 @@ CreateThread(function()
                 if dist < 3.0 then
                     sleep = 0
                     if not hasLobby then
-                        DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 1.0, ('[%s] %s'):format(interactLabel, loc("create_lobby")))
+                        DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 1.0, ('[%s] %s'):format(interactLabel, Locale("create_lobby")))
                         if IsControlJustPressed(0, 38) then -- E key
                             TriggerEvent('dps-roxwoodracing:client:createLobby')
                         end
                     elseif hasLobby and not currentLobby then
-                        DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 1.0, ('[%s] %s'):format(interactLabel, loc("join_lobby")))
+                        DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 1.0, ('[%s] %s'):format(interactLabel, Locale("join_lobby")))
                         if IsControlJustPressed(0, 38) then -- E key
                             TriggerEvent('dps-roxwoodracing:client:joinLobby')
                         end
@@ -584,7 +576,7 @@ CreateThread(function()
 
     local blip = AddBlipForCoord(cfg.coords.x, cfg.coords.y, cfg.coords.z)
     SetBlipSprite(blip, 315); SetBlipDisplay(blip, 4); SetBlipScale(blip, 0.8); SetBlipAsShortRange(blip, false)
-    BeginTextCommandSetBlipName("STRING"); AddTextComponentString(loc('blip_name')); EndTextCommandSetBlipName(blip)
+    BeginTextCommandSetBlipName("STRING"); AddTextComponentString(Locale('blip_name')); EndTextCommandSetBlipName(blip)
 end)
 
 --------------------------------------------------------------------------------
@@ -647,7 +639,7 @@ RegisterNetEvent('dps-roxwoodracing:client:createLobby', function()
         print("[DEBUG] dps-roxwoodracing:client:createLobby event triggered")
     end
     if hasLobby then
-        SpeedwayNotify(loc("lobby_exists"), "", "error")
+        SpeedwayNotify(Locale("lobby_exists"), "", "error")
         return
     end
     -- Build race class options from config
@@ -662,17 +654,17 @@ RegisterNetEvent('dps-roxwoodracing:client:createLobby', function()
         return a.label < b.label
     end)
 
-    local dialog = lib.inputDialog(loc("create_lobby"), {
-        { type = 'number', label = loc("number_of_laps"), required = true, min = 1, max = 10, default = 3 },
-        { type = 'select', label = loc("select_track"),   required = true, default = 'Short_Track',
+    local dialog = lib.inputDialog(Locale("create_lobby"), {
+        { type = 'number', label = Locale("number_of_laps"), required = true, min = 1, max = 10, default = 3 },
+        { type = 'select', label = Locale("select_track"),   required = true, default = 'Short_Track',
           options = {
-              { value = 'Short_Track', label = loc("Short_Track") },
-              { value = 'Drift_Track', label = loc("Drift_Track") },
-              { value = 'Speed_Track', label = loc("Speed_Track") },
-              { value = 'Long_Track',  label = loc("Long_Track")  },
+              { value = 'Short_Track', label = Locale("Short_Track") },
+              { value = 'Drift_Track', label = Locale("Drift_Track") },
+              { value = 'Speed_Track', label = Locale("Speed_Track") },
+              { value = 'Long_Track',  label = Locale("Long_Track")  },
           },
         },
-        { type = 'select', label = loc("select_class"), required = true, default = 'All', options = classOpts },
+        { type = 'select', label = Locale("select_class"), required = true, default = 'All', options = classOpts },
     })
     if not dialog then if Config.DebugPrints then print("[DEBUG] input dialog cancelled") end return end
 
@@ -692,13 +684,13 @@ end)
 RegisterNetEvent('dps-roxwoodracing:client:joinLobby', function()
     local lobbies = lib.callback.await("dps-roxwoodracing:getLobbies", true)
     if not lobbies or #lobbies == 0 then
-        SpeedwayNotify(loc("no_lobbies"), "", "error")
+        SpeedwayNotify(Locale("no_lobbies"), "", "error")
         return
     end
     local opts = {}
     for _, e in ipairs(lobbies) do table.insert(opts, { value = e.value, label = e.label }) end
-    local dialog = lib.inputDialog(loc("join_lobby"), {
-        { type = 'select', label = loc("select_lobby"), required = true, options = opts },
+    local dialog = lib.inputDialog(Locale("join_lobby"), {
+        { type = 'select', label = Locale("select_lobby"), required = true, options = opts },
     })
     if dialog and dialog[1] then
         TriggerServerEvent("dps-roxwoodracing:joinLobby", dialog[1])
@@ -707,7 +699,7 @@ end)
 
 RegisterNetEvent('dps-roxwoodracing:client:startRace', function()
     if lobbyOwner ~= GetPlayerServerId(PlayerId()) then
-        SpeedwayNotify("", loc("not_authorized_to_start_race"), "error")
+        SpeedwayNotify("", Locale("not_authorized_to_start_race"), "error")
         return
     end
     -- Hide lobby preview for the host immediately
@@ -720,7 +712,7 @@ RegisterNetEvent('dps-roxwoodracing:client:startRace', function()
         local pname = pid and GetPlayerName(pid) or ("ID"..sid)
         table.insert(names, pname)
     end
-    SpeedwayNotify(loc("lobby_preview"), table.concat(names, "\n"), "inform", 10000)
+    SpeedwayNotify(Locale("lobby_preview"), table.concat(names, "\n"), "inform", 10000)
     -- No ox_lib context menu to close; lobby window is native
     TriggerServerEvent("dps-roxwoodracing:startRace", currentLobby)
 end)
@@ -762,7 +754,7 @@ CreateThread(function()
             SetTextFont(4); SetTextScale(0.5,0.5); SetTextCentre(true)
             SetTextColour(255,200,50,255); SetTextOutline()
             SetTextEntry("STRING")
-            AddTextComponentString((loc('select_vehicle_timer_fmt')):format(sec))
+            AddTextComponentString((Locale('select_vehicle_timer_fmt')):format(sec))
             DrawText(0.5, 0.12)
         end
     end
@@ -773,7 +765,7 @@ RegisterNetEvent("dps-roxwoodracing:kickedFromLobby", function(lobbyName, reason
     hasLobby, currentLobby, lobbyOwner = false, nil, nil
     HideLobbyDisplay()
     CloseVehicleSelectionUI()
-    local message = reason == "timeout" and loc("vehicle_select_timeout") or loc("removed_from_lobby")
+    local message = reason == "timeout" and Locale("vehicle_select_timeout") or Locale("removed_from_lobby")
     -- Show blocking modal requiring player to acknowledge
     timeoutModalActive = true
     SetNuiFocusKeepInput(false)
@@ -807,7 +799,7 @@ speedwaySuppressAutoUntilAltUp = false
 
 RegisterNetEvent('dps-roxwoodracing:client:leaveLobby', function()
     if not hasLobby then
-        SpeedwayNotify(loc("no_lobby_joined"), loc("no_lobby_joined_desc"), "error")
+        SpeedwayNotify(Locale("no_lobby_joined"), Locale("no_lobby_joined_desc"), "error")
         return
     end
     TriggerServerEvent("dps-roxwoodracing:leaveLobby", currentLobby)
@@ -840,8 +832,8 @@ RegisterNetEvent("dps-roxwoodracing:chooseVehicle", function(lobbyName, raceClas
         end
     end
 
-    local dialog = lib.inputDialog(loc("choose_vehicle_title"), {
-        { type = 'select', label = loc("choose_vehicle_label"), required = true, options = opts, default = opts[1].value },
+    local dialog = lib.inputDialog(Locale("choose_vehicle_title"), {
+        { type = 'select', label = Locale("choose_vehicle_label"), required = true, options = opts, default = opts[1].value },
     })
     local sel = dialog and dialog[1] or nil
     TriggerServerEvent("dps-roxwoodracing:selectedVehicle", lobbyName, sel)
@@ -1093,7 +1085,7 @@ RegisterCommand('speedway_cleanup', function()
 end, false)
 
 RegisterNetEvent("dps-roxwoodracing:youFinished", function()
-    SpeedwayNotify("🏁 Speedway", loc("you_finished"), "success", 5000)
+    SpeedwayNotify("🏁 Speedway", Locale("you_finished"), "success", 5000)
 end)
 
 --------------------------------------------------------------------------------
@@ -1118,7 +1110,7 @@ RegisterNetEvent("dps-roxwoodracing:finalRanking", function(data)
 
     -- Fallback: legacy toast notifications
     if not data.position then
-        local lines = { loc("podium_header") }
+        local lines = { Locale("podium_header") }
         for i,e in ipairs(results) do
             local name = GetPlayerName(GetPlayerFromServerId(e.id)) or ("ID"..e.id)
             lines[#lines+1] = ("%d. %s — %ds"):format(i, name, math.floor(e.time/1000))
@@ -1129,17 +1121,17 @@ RegisterNetEvent("dps-roxwoodracing:finalRanking", function(data)
 
     local totalTime = math.floor((data.totalTime or 0)/1000)
     if data.position == 1 then
-        SpeedwayNotify("🏆 Speedway", loc("you_won", totalTime), "success", 5000)
+        SpeedwayNotify("🏆 Speedway", Locale("you_won", totalTime), "success", 5000)
     else
-        SpeedwayNotify("🏁 Speedway", loc("you_placed", data.position, #results, totalTime), "inform", 5000)
+        SpeedwayNotify("🏁 Speedway", Locale("you_placed", data.position, #results, totalTime), "inform", 5000)
     end
     if data.lapTimes then
-        local lapLines = { loc("lap_summary") }
+        local lapLines = { Locale("lap_summary") }
         for i,t in ipairs(data.lapTimes) do
-            lapLines[#lapLines+1] = loc("lap_time", i, math.floor(t/1000))
+            lapLines[#lapLines+1] = Locale("lap_time", i, math.floor(t/1000))
         end
-        lapLines[#lapLines+1] = loc("best_lap", math.floor((data.bestLap or 0)/1000))
-        SpeedwayNotify(loc("lap_summary"), table.concat(lapLines, "\n"), "info", 10000)
+        lapLines[#lapLines+1] = Locale("best_lap", math.floor((data.bestLap or 0)/1000))
+        SpeedwayNotify(Locale("lap_summary"), table.concat(lapLines, "\n"), "info", 10000)
     end
 end)
 
@@ -1222,19 +1214,19 @@ end)
 --------------------------------------------------------------------------------
 RegisterNetEvent('dps-roxwoodracing:client:rewardNotify', function(data)
     if data.positionPayout and data.positionPayout > 0 then
-        SpeedwayNotify("Speedway", loc("reward_cash", data.positionPayout, data.positionLabel or ""), "success", 5000)
+        SpeedwayNotify("Speedway", Locale("reward_cash", data.positionPayout, data.positionLabel or ""), "success", 5000)
     end
     if data.participation and data.participation > 0 then
-        SpeedwayNotify("Speedway", loc("reward_participation", data.participation), "inform", 4000)
+        SpeedwayNotify("Speedway", Locale("reward_participation", data.participation), "inform", 4000)
     end
     if data.bestLapBonus and data.bestLapBonus > 0 then
-        SpeedwayNotify("Speedway", loc("reward_best_lap", data.bestLapBonus), "success", 5000)
+        SpeedwayNotify("Speedway", Locale("reward_best_lap", data.bestLapBonus), "success", 5000)
     end
     if data.vehiclePrize then
-        SpeedwayNotify("Speedway", loc("reward_vehicle", data.vehiclePrize), "success", 8000)
+        SpeedwayNotify("Speedway", Locale("reward_vehicle", data.vehiclePrize), "success", 8000)
     end
     if data.poolPayout and data.poolPayout > 0 then
-        SpeedwayNotify("Speedway", loc("prize_pool_payout", data.poolPayout), "success", 5000)
+        SpeedwayNotify("Speedway", Locale("prize_pool_payout", data.poolPayout), "success", 5000)
     end
 end)
 
@@ -1243,11 +1235,11 @@ end)
 --------------------------------------------------------------------------------
 RegisterNetEvent('dps-roxwoodracing:client:statsNotify', function(data)
     if data.newRecord then
-        SpeedwayNotify("Speedway", loc("stats_new_record", string.format("%.1f", data.newRecord / 1000)), "success", 6000)
+        SpeedwayNotify("Speedway", Locale("stats_new_record", string.format("%.1f", data.newRecord / 1000)), "success", 6000)
     end
     if data.wins and data.totalRaces then
         local bestStr = data.bestLap and string.format("%.1f", data.bestLap / 1000) or "N/A"
-        SpeedwayNotify("Speedway", loc("stats_summary", data.wins, data.totalRaces, bestStr), "inform", 8000)
+        SpeedwayNotify("Speedway", Locale("stats_summary", data.wins, data.totalRaces, bestStr), "inform", 8000)
     end
 end)
 
@@ -1258,7 +1250,7 @@ RegisterCommand('racestats', function()
         SpeedwayNotify("Speedway", "No stats found.", "error", 3000)
         return
     end
-    local lines = { loc("stats_command_header") }
+    local lines = { Locale("stats_command_header") }
     lines[#lines+1] = ("Races: %d | Wins: %d | Top 3: %d"):format(stats.total_races or 0, stats.wins or 0, stats.top3 or 0)
     lines[#lines+1] = ("Total Earnings: $%d"):format(stats.total_earnings or 0)
     if stats.best_laps then
@@ -1266,5 +1258,5 @@ RegisterCommand('racestats', function()
             lines[#lines+1] = ("%s Best: %.1fs"):format(track, ms / 1000)
         end
     end
-    SpeedwayNotify(loc("stats_command_header"), table.concat(lines, "\n"), "inform", 12000)
+    SpeedwayNotify(Locale("stats_command_header"), table.concat(lines, "\n"), "inform", 12000)
 end, false)
