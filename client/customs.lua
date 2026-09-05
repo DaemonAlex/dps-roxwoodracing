@@ -1,5 +1,6 @@
 -- Vehicle customization helpers: apply max performance, random cosmetics, and random paint instantly.
 
+Customs = {}
 local Styles = {}
 
 local function ensureControl(ent, tries)
@@ -18,24 +19,6 @@ end
 
 local function rand(min, max)
     return math.random(min or 0, max or 255)
-end
-
-local function applyPerformanceMax(veh)
-    if not veh or veh == 0 then return end
-    SetVehicleModKit(veh, 0)
-    local perfSlots = {11,12,13,15,16}
-    for _, slot in ipairs(perfSlots) do
-        local count = GetNumVehicleMods(veh, slot)
-        if count and count > 0 then
-            local maxIndex = count - 1
-            if maxIndex >= 0 then SetVehicleMod(veh, slot, maxIndex, false) end
-        end
-    end
-    -- Turbo, tire smoke, xenon
-    ToggleVehicleMod(veh, 17, true)
-    ToggleVehicleMod(veh, 18, true)
-    ToggleVehicleMod(veh, 19, true)
-    -- Some servers prefer max armor via native instead of mod (slot 16 covers it)
 end
 
 local function buildStyle(veh)
@@ -95,10 +78,9 @@ local function applyStyle(veh, style)
 end
 
 -- Public API: apply everything, with a quick reapply to ensure visibility
-function Speedway_ApplyAll(veh)
+function Customs.ApplyStyle(veh)
     if not veh or veh == 0 then return end
     ensureControl(veh)
-    applyPerformanceMax(veh)
     local netId = NetworkGetNetworkIdFromEntity(veh)
     local style = Styles[netId]
     if not style then
@@ -120,4 +102,18 @@ function Speedway_ApplyAll(veh)
     end)
 end
 
-return {}
+
+-- Lobby-wide tune preset (Stock / Street / Race) from Config.Tune via shared/tune.lua
+function Customs.ApplyTune(veh, presetKey)
+  if not veh or veh == 0 or not DoesEntityExist(veh) then return end
+  local t = Tune.ModsFor(presetKey, Config)
+  SetVehicleModKit(veh, 0)
+  for slot, idx in pairs(t.mods) do
+    local count = GetNumVehicleMods(veh, slot) or 0
+    if count > 0 then
+      local i = idx == 'max' and (count - 1) or math.min(tonumber(idx) or -1, count - 1)
+      SetVehicleMod(veh, slot, i, false)
+    end
+  end
+  for slot, on in pairs(t.toggles) do ToggleVehicleMod(veh, slot, on) end
+end

@@ -188,78 +188,11 @@ local currentProps         = {}
 local currentZones         = {}
 local racerCheckpointIndex = 0
 local inRace               = false
+raceMode                   = 'spec'
 local myPosition           = 0
 local totalRacers          = 0
 -- Expose race state for other client scripts (c_pit.lua)
-function IsSpeedwayRaceActive() return inRace end
-
---------------------------------------------------------------------------------
--- GHOSTING STATE
---------------------------------------------------------------------------------
-local raceNetIds  = {}   -- { {pid=, netId=}, ... } from server
-local ghostActive = false
-local myRaceVeh   = nil  -- entity handle of our race vehicle
-
-local function StartGhostThread()
-    ghostActive = true
-    local ghostEntities = {}  -- cached entity handles for fast loop
-
-    -- Fast loop: collision disable only (every frame for rock-solid no-clip)
-    CreateThread(function()
-        while ghostActive and inRace do
-            if myRaceVeh and DoesEntityExist(myRaceVeh) then
-                for _, ent in ipairs(ghostEntities) do
-                    if DoesEntityExist(ent) then
-                        SetEntityNoCollisionEntity(myRaceVeh, ent, true)
-                    end
-                end
-            end
-            Wait(0)
-        end
-    end)
-
-    -- Slow loop: entity resolution + alpha (200ms throttle)
-    CreateThread(function()
-        while ghostActive and inRace do
-            local resolved = {}
-            for _, v in ipairs(raceNetIds) do
-                local other = NetworkGetEntityFromNetworkId(v.netId)
-                if DoesEntityExist(other) and other ~= myRaceVeh then
-                    resolved[#resolved+1] = other
-                    SetEntityAlpha(other, Config.Ghosting.ghostAlpha, false)
-                end
-            end
-            ghostEntities = resolved  -- atomic swap for fast loop
-            Wait(200)
-        end
-        -- Cleanup: restore alpha on all known race vehicles
-        for _, v in ipairs(raceNetIds) do
-            local other = NetworkGetEntityFromNetworkId(v.netId)
-            if DoesEntityExist(other) then
-                ResetEntityAlpha(other)
-            end
-        end
-    end)
-end
-
--- Receive all race vehicle netIds from server
-RegisterNetEvent("dps-roxwoodracing:raceVehicles", function(vehicles)
-    raceNetIds = vehicles or {}
-end)
-
--- End start-of-race ghost period
-RegisterNetEvent("dps-roxwoodracing:client:unghost", function()
-    ghostActive = false
-end)
-
--- Lapped-player ghost toggle (ghost self against all others)
-RegisterNetEvent("dps-roxwoodracing:client:setGhosted", function(isGhosted)
-    if isGhosted then
-        StartGhostThread()
-    else
-        ghostActive = false
-    end
-end)
+function IsRaceActive() return inRace end
 
 --------------------------------------------------------------------------------
 -- 5) COMPUTE DISTANCE ALONG TRACK
@@ -510,51 +443,50 @@ AddEventHandler('playerSpawned', function()
     end
 end)
 --------------------------------------------------------------------------------
+function GetMyVehicleInfo()
+    local ped = PlayerPedId()
+    local veh = GetVehiclePedIsIn(ped, false)
+    if not veh or veh == 0 or GetPedInVehicleSeat(veh, -1) ~= ped then return nil end
+    return { netId = NetworkGetNetworkIdFromEntity(veh), plate = GetVehicleNumberPlateText(veh), class = GetVehicleClass(veh) }
+end
+
 RegisterNetEvent('dps-roxwoodracing:client:createLobby', function()
-    if Config.DebugPrints then
-        print("[DEBUG] dps-roxwoodracing:client:createLobby event triggered")
-    end
-    if hasLobby then
-        Notify(Locale("lobby_exists"), "", "error")
-        return
-    end
-    -- Build race class options from config
-    local classOpts = {}
-    for key, cls in pairs(Config.RaceClasses) do
-        table.insert(classOpts, { value = key, label = cls.label .. " - " .. cls.description })
-    end
-    -- Sort so "Open Class" (All) is first
-    table.sort(classOpts, function(a, b)
-        if a.value == "All" then return true end
-        if b.value == "All" then return false end
-        return a.label < b.label
-    end)
-
-    local dialog = lib.inputDialog(Locale("create_lobby"), {
+    if hasLobby then Notify(Locale("lobby_exists"), "", "error") return end
+    local modePick = lib.inputDialog(Locale("create_lobby"), {
+        { type = 'select', label = Locale("select_mode"), required = true, default = 'spec',
+          options = { { value = 'spec', label = Locale("mode_spec") }, { value = 'open', label = Locale("mode_open") } } },
         { type = 'number', label = Locale("number_of_laps"), required = true, min = 1, max = 10, default = 3 },
-        { type = 'select', label = Locale("select_track"),   required = true, default = 'Short_Track',
-          options = {
-              { value = 'Short_Track', label = Locale("Short_Track") },
-              { value = 'Drift_Track', label = Locale("Drift_Track") },
-              { value = 'Speed_Track', label = Locale("Speed_Track") },
-              { value = 'Long_Track',  label = Locale("Long_Track")  },
-          },
-        },
-        { type = 'select', label = Locale("select_class"), required = true, default = 'All', options = classOpts },
+        { type = 'select', label = Locale("select_track"), required = true, default = 'Short_Track',
+          options = { { value = 'Short_Track', label = Locale("Short_Track") }, { value = 'Drift_Track', label = Locale("Drift_Track") },
+                      { value = 'Speed_Track', label = Locale("Speed_Track") }, { value = 'Long_Track', label = Locale("Long_Track") } } },
     })
-    if not dialog then if Config.DebugPrints then print("[DEBUG] input dialog cancelled") end return end
-
-    local lapCount   = tonumber(dialog[1]) or 1
-    local trackType  = dialog[2]
-    local raceClass  = dialog[3] or 'All'
+    if not modePick then return end
+    local mode, laps, track = modePick[1], tonumber(modePick[2]) or 3, modePick[3]
+    local args = { track = track, laps = laps, mode = mode }
+    if mode == 'open' then
+        local classes = lib.callback.await('dps-roxwoodracing:getOpenClasses', false)
+        local pick = lib.inputDialog(Locale("mode_open"), { { type = 'select', label = Locale("select_open_class"), required = true, default = 'Any', options = classes } })
+        if not pick then return end
+        args.class = pick[1]
+        args.vehicle = GetMyVehicleInfo()
+        if not args.vehicle then Notify(Config.Job.label, Locale("open_need_vehicle"), "error") return end
+    else
+        local cat = lib.callback.await('dps-roxwoodracing:getSpecCatalogue', false)
+        local classOpts, tuneOpts = {}, {}
+        for _, key in ipairs(cat.order) do classOpts[#classOpts+1] = { value = key, label = cat.classes[key].label } end
+        for _, key in ipairs(Config.TuneOrder) do tuneOpts[#tuneOpts+1] = { value = key, label = Config.Tune[key].label } end
+        local pick = lib.inputDialog(Locale("mode_spec"), {
+            { type = 'select', label = Locale("select_class"), required = true, default = 'All', options = classOpts },
+            { type = 'select', label = Locale("select_tune"), required = true, default = 'Stock', options = tuneOpts },
+        })
+        if not pick then return end
+        args.class, args.tune = pick[1], pick[2]
+    end
     local rawName = GetPlayerName(PlayerId()) or "Racer"
     local safeName = rawName:gsub("[^%w_]", "_"):sub(1, 30)
     if safeName == "" then safeName = "Racer" end
-    local lobbyName = safeName .. "_" .. math.random(1000,9999)
-    if Config.DebugPrints then
-        print(string.format("[DEBUG] TriggerServerEvent dps-roxwoodracing:createLobby: lobbyName=%s, trackType=%s, lapCount=%s, raceClass=%s", lobbyName, trackType, lapCount, raceClass))
-    end
-    TriggerServerEvent("dps-roxwoodracing:createLobby", lobbyName, trackType, lapCount, raceClass)
+    args.name = safeName .. "_" .. math.random(1000, 9999)
+    TriggerServerEvent("dps-roxwoodracing:createLobby", args)
 end)
 
 RegisterNetEvent('dps-roxwoodracing:client:joinLobby', function()
@@ -569,7 +501,14 @@ RegisterNetEvent('dps-roxwoodracing:client:joinLobby', function()
         { type = 'select', label = Locale("select_lobby"), required = true, options = opts },
     })
     if dialog and dialog[1] then
-        TriggerServerEvent("dps-roxwoodracing:joinLobby", dialog[1])
+        local chosen, vehicle = dialog[1], nil
+        for _, e in ipairs(lobbies) do
+            if e.value == chosen and e.mode == 'open' then
+                vehicle = GetMyVehicleInfo()
+                if not vehicle then Notify(Config.Job.label, Locale("open_need_vehicle"), "error") return end
+            end
+        end
+        TriggerServerEvent("dps-roxwoodracing:joinLobby", chosen, vehicle)
     end
 end)
 
@@ -671,32 +610,14 @@ end)
 --------------------------------------------------------------------------------
 -- 11) VEHICLE SELECTION
 --------------------------------------------------------------------------------
-RegisterNetEvent("dps-roxwoodracing:chooseVehicle", function(lobbyName, raceClass)
-    -- Filter vehicles by race class if specified
-    local allowedModels = nil
-    if raceClass and Config.RaceClasses[raceClass] and Config.RaceClasses[raceClass].vehicles then
-        allowedModels = {}
-        for _, m in ipairs(Config.RaceClasses[raceClass].vehicles) do
-            allowedModels[m:lower()] = true
-        end
-    end
-
+RegisterNetEvent("dps-roxwoodracing:chooseVehicle", function(lobbyName, classKey)
+    local cat = lib.callback.await('dps-roxwoodracing:getSpecCatalogue', false)
+    local cls = cat and cat.classes[classKey] or (cat and cat.classes.All)
     local opts = {}
-    for _, v in ipairs(Config.RaceVehicles) do
-        if not allowedModels or allowedModels[v.model:lower()] then
-            table.insert(opts, { value = v.model, label = v.label })
-        end
-    end
-
-    if #opts == 0 then
-        -- Fallback to all vehicles if class filter yields nothing
-        for _, v in ipairs(Config.RaceVehicles) do
-            table.insert(opts, { value = v.model, label = v.label })
-        end
-    end
-
+    for _, v in ipairs(cls and cls.vehicles or {}) do opts[#opts+1] = { value = v.model, label = v.label } end
+    if #opts == 0 then TriggerServerEvent("dps-roxwoodracing:selectedVehicle", lobbyName, nil) return end
     local dialog = lib.inputDialog(Locale("choose_vehicle_title"), {
-        { type = 'select', label = Locale("choose_vehicle_label"), required = true, options = opts, default = opts[1].value },
+        { type = 'select', label = Locale("choose_vehicle_label"), required = true, options = opts, default = opts[1].value, searchable = true },
     })
     local sel = dialog and dialog[1] or nil
     TriggerServerEvent("dps-roxwoodracing:selectedVehicle", lobbyName, sel)
@@ -766,6 +687,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
         end
     })
     table.insert(currentZones, finishZone)
+    Pit.Arm()
 
     -- now spawn & race
     CreateThread(function()
@@ -790,25 +712,39 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
           veh = NetworkGetEntityFromNetworkId(data.netId)
         end
 
-    -- Store our race vehicle handle for ghosting
-    myRaceVeh = veh
 
-    -- prep vehicle
+    raceMode = data.mode or 'spec'
+    Ghost.myVeh = veh
     SetEntityAsMissionEntity(veh, true, true)
-    FreezeEntityPosition(veh, true)
-    -- Give keys as early as possible (before any engine state changes)
-    Keys.Give(veh, data.plate)
-
-    -- Apply fuel and full cosmetics BEFORE putting the player in to avoid visible pop
-    Fuel.SetFull(veh)
-    if Speedway_ApplyAll then Speedway_ApplyAll(veh) end
-    -- Engine ON before countdown so drivers can launch instantly at GO
-    SetVehicleEngineOn(veh, true, true, false)
-    SetVehicleUndriveable(veh, true)
-
-    -- Put player in the vehicle after customization
-    TaskWarpPedIntoVehicle(PlayerPedId(), veh, -1)
-    repeat Wait(0) until IsPedInAnyVehicle(PlayerPedId(), false)
+    if raceMode == 'open' then
+        -- Own car: no keys, fuel or style. Snap onto the grid slot and hold for the countdown.
+        if data.grid then
+            SetEntityCoords(veh, data.grid.x, data.grid.y, data.grid.z, false, false, false, true)
+            SetEntityHeading(veh, data.grid.w)
+            SetVehicleOnGroundProperly(veh)
+        end
+        FreezeEntityPosition(veh, true)
+        SetVehicleEngineOn(veh, true, true, false)
+        SetVehicleUndriveable(veh, true)
+        if not IsPedInAnyVehicle(PlayerPedId(), false) then
+            TaskWarpPedIntoVehicle(PlayerPedId(), veh, -1)
+            repeat Wait(0) until IsPedInAnyVehicle(PlayerPedId(), false)
+        end
+    else
+        FreezeEntityPosition(veh, true)
+        -- Give keys as early as possible (before any engine state changes)
+        Keys.Give(veh, data.plate)
+        -- Apply fuel, cosmetics and the lobby tune BEFORE putting the player in to avoid visible pop
+        Fuel.SetFull(veh)
+        Customs.ApplyStyle(veh)
+        Customs.ApplyTune(veh, data.tune or 'Stock')
+        -- Engine ON before countdown so drivers can launch instantly at GO
+        SetVehicleEngineOn(veh, true, true, false)
+        SetVehicleUndriveable(veh, true)
+        -- Put player in the vehicle after customization
+        TaskWarpPedIntoVehicle(PlayerPedId(), veh, -1)
+        repeat Wait(0) until IsPedInAnyVehicle(PlayerPedId(), false)
+    end
 
     -- (keys were already granted before customization)
 
@@ -819,7 +755,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
 
         -- Apply the desired name-based plate AFTER cosmetics to avoid any overwrite
         local desiredPlate = (data and data.plate) or (GetVehicleNumberPlateText(veh) or "")
-        if desiredPlate and desiredPlate ~= "" then
+        if raceMode == 'spec' and desiredPlate and desiredPlate ~= "" then
             SetVehicleNumberPlateText(veh, desiredPlate)
             if Config.DebugPrints then
                 print(("[DEBUG] Applied name plate after cosmetics -> '%s'"):format(tostring(desiredPlate)))
@@ -835,13 +771,13 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
         end
 
         -- Reassert FULL FUEL for a short window in case other scripts set it later
-        CreateThread(function()
+        if raceMode == 'spec' then CreateThread(function()
             local untilTs = GetGameTimer() + 2500
             while GetGameTimer() < untilTs and DoesEntityExist(veh) do
                 Fuel.SetFull(veh)
                 Wait(200)
             end
-        end)
+        end) end
 
         -- Keep doors unlocked during initialization for a short window to override scripts
         CreateThread(function()
@@ -870,7 +806,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
 
         -- Start ghosting at GO if enabled
         if Config.Ghosting.enabled and Config.Ghosting.startGhosted then
-            StartGhostThread()
+            Ghost.Start(veh)
         end
 
         -- Post-GO safety: briefly assert drivability and unlock state without touching engine
@@ -924,10 +860,11 @@ end)
 -- Cleanup: remove spawned props and any active checkpoint/finish zones
 RegisterNetEvent("dps-roxwoodracing:client:destroyprops", function()
     Hud.HideRace()
+    Pit.Disarm()
     -- End ghosting
-    ghostActive = false
-    raceNetIds = {}
-    myRaceVeh = nil
+    Ghost.Stop()
+    Ghost.SetRaceVehicles({})
+    Ghost.myVeh = nil
     -- delete props
     for _, obj in ipairs(currentProps) do
         if obj and DoesEntityExist(obj) then
@@ -1007,20 +944,27 @@ end)
 RegisterNetEvent("dps-roxwoodracing:client:finishTeleport", function(coords, keepVehicle)
     inRace = false
     Hud.HideRace()
-    ghostActive = false
-    myRaceVeh = nil
+    Ghost.Stop()
+    Ghost.myVeh = nil
     CreateThread(function()
         DoScreenFadeOut(1000); while not IsScreenFadedOut() do Wait(0) end
 
         local ped = PlayerPedId()
-        if IsPedInAnyVehicle(ped, false) then
-            local v = GetVehiclePedIsIn(ped, false)
-            TaskLeaveVehicle(ped, v, 0); Wait(500)
-            if DoesEntityExist(v) then DeleteVehicle(v) end
+        local v = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or 0
+        if v ~= 0 and keepVehicle then
+            -- Open mode: the racer keeps their own car; move car and driver together
+            FreezeEntityPosition(v, false)
+            SetEntityCoords(v, coords.x, coords.y, coords.z, false, false, false, true)
+            SetEntityHeading(v, coords.w)
+            SetVehicleOnGroundProperly(v)
+        else
+            if v ~= 0 then
+                TaskLeaveVehicle(ped, v, 0); Wait(500)
+                if DoesEntityExist(v) then DeleteVehicle(v) end
+            end
+            SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
+            SetEntityHeading(ped, coords.w)
         end
-
-        SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
-        SetEntityHeading(ped, coords.w)
         Wait(500); DoScreenFadeIn(1000)
     end)
 end)
