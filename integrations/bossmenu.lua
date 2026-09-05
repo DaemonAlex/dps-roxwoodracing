@@ -14,17 +14,29 @@ if IsDuplicityVersion() then
   CreateThread(function() Wait(2000); BossMenu.Register() end)
 else
   BossMenu.Provider = up('qbx_management') and 'qbx_management' or 'none'
-  function BossMenu.AddItem()
+  local itemId = nil
+  -- qbx_management shows every dynamic item to every job, so only register ours while the
+  -- player actually holds the roxwoodracing job (and drop it when they leave it).
+  function BossMenu.Sync()
     if BossMenu.Provider ~= 'qbx_management' then return end
-    pcall(function()
-      exports.qbx_management:AddBossMenuItem({
-        title = Locale('raceway_control'),
-        description = 'Fees, purse, sign, end race',
-        icon = 'flag-checkered',
-        event = 'dps-roxwoodracing:client:openControl',
-        args = { type = 'job', groupName = Config.Job.name },
-      })
-    end)
+    local mine = Bridge.HasJob(Config.Job.name, 0)
+    if mine and not itemId then
+      pcall(function()
+        itemId = exports.qbx_management:AddBossMenuItem({
+          title = Locale('raceway_control'),
+          description = 'Fees, purse, sign, end race',
+          icon = 'flag-checkered',
+          event = 'dps-roxwoodracing:client:openControl',
+          args = { type = 'job', groupName = Config.Job.name },
+        })
+      end)
+    elseif not mine and itemId then
+      pcall(function() exports.qbx_management:RemoveBossMenuItem(itemId) end)
+      itemId = nil
+    end
   end
-  CreateThread(function() Wait(2000); BossMenu.AddItem() end)
+  RegisterNetEvent('QBCore:Client:OnJobUpdate', function() BossMenu.Sync() end)
+  RegisterNetEvent('qbx_core:client:onJobUpdate', function() BossMenu.Sync() end)
+  RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function() BossMenu.Sync() end)
+  CreateThread(function() Wait(2000); BossMenu.Sync() end)
 end
