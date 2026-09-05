@@ -16,7 +16,8 @@ end
 
 function Staff.SetSetting(k, v)
   v = tonumber(v)
-  if not keys[k] or not v or v < 0 or v ~= math.floor(v) then return false end
+  local cap = Config.Economy.maxStaffSetting or 1000000
+  if not keys[k] or not v or v < 0 or v > cap or v ~= math.floor(v) then return false end
   keys[k](v)
   MySQL.query.await(('INSERT INTO %s (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = ?'):format(SETTINGS), { k, tostring(v), tostring(v) })
   return true
@@ -33,7 +34,7 @@ function Staff.Snapshot()
   local e = Config.Economy
   return { payout1 = e.payouts[1], payout2 = e.payouts[2], payout3 = e.payouts[3], showup = e.participationReward,
            bestlap = e.bestLapBonus, entryfee = e.entryFee.amount, purseSource = e.purseSource,
-           balance = Banking and Banking.GetBalance(Config.Job.name) or 0, lobbies = Race.ListLobbies and Race.ListLobbies() or {} }
+           balance = (Banking and Banking.Provider ~= 'none') and Banking.GetBalance(Config.Job.name) or 0, lobbies = Race.ListLobbies and Race.ListLobbies() or {} }
 end
 
 lib.callback.register('dps-roxwoodracing:staff:snapshot', function(src)
@@ -50,7 +51,13 @@ RegisterNetEvent('dps-roxwoodracing:staff:action', function(action, payload)
     Race.EndLobby(payload.lobby, 'staff')
   elseif action == 'clearProps' then
     if not Staff.Can(src, 'marshal') then return deny() end
-    TriggerClientEvent('dps-roxwoodracing:client:destroyprops', -1)
+    -- Never strip zones/props from someone mid-race in another lobby: only idle players get it.
+    for _, pidStr in ipairs(GetPlayers()) do
+      local pid = tonumber(pidStr)
+      if pid and not (Race.IsPlayerInLobby and Race.IsPlayerInLobby(pid)) then
+        TriggerClientEvent('dps-roxwoodracing:client:destroyprops', pid)
+      end
+    end
   elseif action == 'signMode' then
     if not Staff.Can(src, 'marshal') then return deny() end
     Race.SetSignMode(payload.lobby, payload.mode)

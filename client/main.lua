@@ -697,6 +697,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
           if GetGameTimer() > deadline then
             Notify(Config.Job.label, "Vehicle failed to spawn. Please try again.", "error", 5000)
             inRace = false
+            TriggerEvent("dps-roxwoodracing:client:destroyprops")
             return
           end
           Wait(0)
@@ -706,6 +707,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
           if GetGameTimer() > deadline then
             Notify(Config.Job.label, "Vehicle failed to spawn. Please try again.", "error", 5000)
             inRace = false
+            TriggerEvent("dps-roxwoodracing:client:destroyprops")
             return
           end
           Wait(0)
@@ -899,6 +901,8 @@ RegisterNetEvent("dps-roxwoodracing:finalRanking", function(data)
             bestLapPlayer = data.bestLapPlayer,
             mostImprovedPlayer = data.mostImprovedPlayer,
             track = data.track,
+            purseCovered = data.purseCovered,
+            purseNote = (data.purseCovered == false) and Locale('purse_short') or nil,
             autoDismissMs = Config.ResultsUI.displayDurationMs or 20000,
         })
         SetNuiFocus(true, true)

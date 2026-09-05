@@ -27,4 +27,6 @@ Config.Economy = {
   vehiclePrize        = nil,        -- e.g. 'sultan3'; nil = off
   prizeGarage         = 'Roxwood Raceway',
   moneyType           = 'cash',     -- player side of every transaction
+  minPlayersForPurse  = 2,          -- solo races pay the buy-in pool only (no purse farming)
+  maxStaffSetting     = 1000000,    -- ceiling for any fee/purse value set from Raceway Control
 }

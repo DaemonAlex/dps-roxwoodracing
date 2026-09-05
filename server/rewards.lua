@@ -22,7 +22,12 @@ function Rewards.ChargeEntryFee(pid, lobbyName)
     return false
   end
   if not Bridge.RemoveMoney(pid, eco().moneyType, amount, 'roxwoodracing-entryfee') then return false end
-  Banking.Deposit(account(), amount, 'Entry fee', ('Lobby %s'):format(tostring(lobbyName)), Bridge.GetPlayerName(pid))
+  if not Banking.Deposit(account(), amount, 'Entry fee', ('Lobby %s'):format(tostring(lobbyName)), Bridge.GetPlayerName(pid)) then
+    -- Bank refused: give the cash straight back rather than leave it in limbo
+    Bridge.AddMoney(pid, eco().moneyType, amount, 'roxwoodracing-entryfee-bounce')
+    print(('[dps-roxwoodracing] WARNING: society deposit failed for player %s; fee returned'):format(tostring(pid)))
+    return false
+  end
   notify(pid, 'entry_fee_charged', 'inform', amount)
   return true
 end
@@ -30,6 +35,7 @@ end
 function Rewards.RefundEntryFee(pid, lobbyName)
   local amount = Rewards.FeeAmount()
   if amount <= 0 or not Bridge.Framework then return end
+  if not Bridge.GetPlayerIdentifier(pid) then return end -- offline: leave the fee in the account, nothing to pay to
   if not Banking.Withdraw(account(), amount, 'Entry fee refund', ('Lobby %s'):format(tostring(lobbyName)), Bridge.GetPlayerName(pid)) then
     return -- account drained meanwhile; nothing to refund from
   end
@@ -56,7 +62,8 @@ end
 function Rewards.Settle(lob, results, bestLapPid)
   if not Bridge.Framework then return {}, true end
   local balance = eco().purseSource == 'house' and math.huge or Banking.GetBalance(account())
-  local payouts, covered = Payouts.Compute(results, bestLapPid, eco(), lob.prizePool or 0, balance)
+  local allowPurse = #results >= (eco().minPlayersForPurse or 1)
+  local payouts, covered, reason = Payouts.Compute(results, bestLapPid, eco(), lob.prizePool or 0, balance, allowPurse)
   local labelFor = { [1] = '1st', [2] = '2nd', [3] = '3rd' }
   for pos, entry in ipairs(results) do
     local pid, p = entry.id, payouts[entry.id]
@@ -73,17 +80,29 @@ function Rewards.Settle(lob, results, bestLapPid)
       end
       local vehiclePrize = nil
       if pos == 1 and eco().vehiclePrize and covered then
-        vehiclePrize = eco().vehiclePrize
-        Garages.GiveVehicle(pid, vehiclePrize, 'PRIZE' .. math.random(100, 999))
+        local okv, res = pcall(Garages.GiveVehicle, pid, eco().vehiclePrize, Rewards.UniquePlate('PRZ'))
+        if okv and res then vehiclePrize = eco().vehiclePrize
+        else print(('[dps-roxwoodracing] WARNING: prize car not delivered to %s: %s'):format(tostring(pid), tostring(res))) end
       end
       TriggerClientEvent('dps-roxwoodracing:client:rewardNotify', pid, {
         positionPayout = p.position, positionLabel = labelFor[pos] or (pos .. 'th'),
         participation = p.participation, bestLapBonus = p.bestLap, poolPayout = p.pool,
-        vehiclePrize = vehiclePrize, totalPayout = p.total, purseCovered = covered,
+        vehiclePrize = vehiclePrize, totalPayout = p.total, purseCovered = covered, purseReason = reason,
       })
     end
   end
-  return payouts, covered
+  return payouts, covered, reason
+end
+
+-- A plate no vehicle row already uses (checked, not assumed).
+function Rewards.UniquePlate(prefix)
+  for _ = 1, 20 do
+    local plate = (prefix .. tostring(math.random(10000, 99999))):sub(1, 8)
+    local table = Bridge.Framework == 'esx' and 'owned_vehicles' or 'player_vehicles'
+    local n = MySQL.scalar.await(('SELECT COUNT(*) FROM %s WHERE TRIM(plate) = ?'):format(table), { plate })
+    if (tonumber(n) or 0) == 0 then return plate end
+  end
+  return prefix .. tostring(GetGameTimer() % 100000)
 end
 
 CreateThread(function()

@@ -105,7 +105,54 @@ local function buildLobbyInfo(lobbyName, lob)
   }
 end
 
+
+-- Server-side check of an Open-mode car: the netId must resolve to a vehicle whose plate matches,
+-- with the requesting player in the driver seat. Class cannot be read server-side; the registry
+-- category is used when the model is known, otherwise the client-reported class is accepted.
+local function VerifyOpenVehicle(src, vehicle, classKey)
+  if type(vehicle) ~= 'table' or type(vehicle.plate) ~= 'string' then return false, 'open_need_vehicle' end
+  local netId = tonumber(vehicle.netId)
+  if not netId then return false, 'open_need_vehicle' end
+  local veh = NetworkGetEntityFromNetworkId(netId)
+  if not veh or veh == 0 or not DoesEntityExist(veh) or GetEntityType(veh) ~= 2 then return false, 'open_need_vehicle' end
+  local plate = (GetVehicleNumberPlateText(veh) or ''):gsub('^%s+', ''):gsub('%s+$', '')
+  local claimed = vehicle.plate:gsub('^%s+', ''):gsub('%s+$', '')
+  if plate == '' or plate ~= claimed then return false, 'open_not_owner' end
+  if GetPedInVehicleSeat(veh, -1) ~= GetPlayerPed(src) then return false, 'open_need_vehicle' end
+  if not Lobbies.VerifyOwnedVehicle(src, plate) then return false, 'open_not_owner' end
+  local classId = Lobbies.ClassForModel(GetEntityModel(veh)) or tonumber(vehicle.class)
+  if not Lobbies.OpenClassAllows(classKey, classId) then return false, 'open_wrong_class' end
+  return true, nil, { netId = netId, plate = plate }
+end
+
+local function VehicleAlreadyRegistered(lob, plate, exceptPid)
+  for pid, v in pairs(lob.vehicles or {}) do
+    if pid ~= exceptPid and v.plate == plate then return true end
+  end
+  return false
+end
+
+local function DeleteSpawnedVehicle(lob, pid)
+  local veh = lob.spawned and lob.spawned[pid]
+  if veh and DoesEntityExist(veh) then DeleteEntity(veh) end
+  if lob.spawned then lob.spawned[pid] = nil end
+end
+
+local function PromoteSign(lobbyName)
+  if primaryLobby ~= lobbyName then return end
+  primaryLobby = nil
+  for n, l in pairs(lobbies) do if l.isStarted then primaryLobby = n break end end
+  if Config.Leaderboard and Config.Leaderboard.enabled and not primaryLobby then exports['dps-roxwoodracing']:ShowIdleLeaderboard() end
+end
+
+local FinishRaceIfDone -- defined with lapPassed below
+
 Race = Race or {}
+
+function Race.IsPlayerInLobby(pid)
+  local name = findLobbyByPlayer(pid)
+  return name ~= nil
+end
 
 function Race.ListLobbies()
   local out = {}
@@ -131,16 +178,13 @@ function Race.EndLobby(lobbyName, reason)
     TriggerClientEvent('dps-roxwoodracing:client:destroyprops', pid)
     TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', pid, nil)
     if lob.isStarted then TriggerClientEvent('dps-roxwoodracing:client:finishTeleport', pid, Config.outCoords, lob.mode == 'open') end
+    DeleteSpawnedVehicle(lob, pid)
   end
   pendingChoices[lobbyName] = nil
   amirState[lobbyName] = nil
   lobbies[lobbyName] = nil
   TriggerClientEvent('dps-roxwoodracing:setLobbyState', -1, next(lobbies) ~= nil)
-  if primaryLobby == lobbyName then
-    primaryLobby = nil
-    for n, l in pairs(lobbies) do if l.isStarted then primaryLobby = n break end end
-    if Config.Leaderboard and Config.Leaderboard.enabled and not primaryLobby then exports['dps-roxwoodracing']:ShowIdleLeaderboard() end
-  end
+  PromoteSign(lobbyName)
 end
 
 math.randomseed(GetGameTimer())
@@ -177,19 +221,19 @@ RegisterNetEvent("dps-roxwoodracing:createLobby", function(args)
     if existing.track == c.track then ServerNotify(src, Config.Job.label, Locale("track_in_use"), 'error') return end
   end
   if lobbies[c.name] then ServerNotify(src, Config.Job.label, Locale("lobby_exists"), 'error') return end
+  local openVeh
   if c.mode == 'open' then
-    local veh = args.vehicle
-    if type(veh) ~= 'table' or not veh.plate then ServerNotify(src, Config.Job.label, Locale('open_need_vehicle'), 'error') return end
-    if not Lobbies.VerifyOwnedVehicle(src, veh.plate) then ServerNotify(src, Config.Job.label, Locale('open_not_owner'), 'error') return end
-    if not Lobbies.OpenClassAllows(c.class, tonumber(veh.class)) then ServerNotify(src, Config.Job.label, Locale('open_wrong_class', Config.OpenClasses[c.class].label), 'error') return end
+    local okv, err, v = VerifyOpenVehicle(src, args.vehicle, c.class)
+    if not okv then ServerNotify(src, Config.Job.label, Locale(err, Config.OpenClasses[c.class].label), 'error') return end
+    openVeh = v
   end
   if not Rewards.ChargeEntryFee(src, c.name) then return end
   lobbies[c.name] = {
     name = c.name, owner = src, track = c.track, laps = c.laps, mode = c.mode, class = c.class, tune = c.tune,
     players = { src }, vehicles = {}, checkpointProgress = {}, isStarted = false, lapProgress = {}, finished = {},
-    lapTimes = {}, startTime = {}, progress = {}, prizePool = Rewards.FeeAmount(),
+    lapTimes = {}, startTime = {}, progress = {}, prizePool = Rewards.FeeAmount(), spawned = {},
   }
-  if c.mode == 'open' then lobbies[c.name].vehicles[src] = { netId = tonumber(args.vehicle.netId), plate = args.vehicle.plate } end
+  if openVeh then lobbies[c.name].vehicles[src] = openVeh end
   if Config.DebugPrints then print("[DEBUG] Lobby created: " .. c.name .. " mode=" .. c.mode) end
   ServerNotify(src, Config.Job.label, Locale("lobby_created", c.name), 'success')
   TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', src, buildLobbyInfo(c.name, lobbies[c.name]))
@@ -223,14 +267,20 @@ RegisterNetEvent("dps-roxwoodracing:joinLobby", function(lobbyName, vehicle)
         return
       end
     end
+    if #lobby.players >= #Config.GridSpawnPoints then
+      ServerNotify(src, Config.Job.label, 'Lobby is full.', 'error')
+      return
+    end
+    local openVeh
     if lobby.mode == 'open' then
-      if type(vehicle) ~= 'table' or not vehicle.plate then ServerNotify(src, Config.Job.label, Locale('open_need_vehicle'), 'error') return end
-      if not Lobbies.VerifyOwnedVehicle(src, vehicle.plate) then ServerNotify(src, Config.Job.label, Locale('open_not_owner'), 'error') return end
-      if not Lobbies.OpenClassAllows(lobby.class, tonumber(vehicle.class)) then ServerNotify(src, Config.Job.label, Locale('open_wrong_class', Config.OpenClasses[lobby.class].label), 'error') return end
-      lobby.vehicles[src] = { netId = tonumber(vehicle.netId), plate = vehicle.plate }
+      local okv, err, v = VerifyOpenVehicle(src, vehicle, lobby.class)
+      if not okv then ServerNotify(src, Config.Job.label, Locale(err, Config.OpenClasses[lobby.class].label), 'error') return end
+      if VehicleAlreadyRegistered(lobby, v.plate, src) then ServerNotify(src, Config.Job.label, Locale('open_not_owner'), 'error') return end
+      openVeh = v
     end
     -- Charge entry fee before adding to lobby
     if not Rewards.ChargeEntryFee(src, lobbyName) then return end
+    if openVeh then lobby.vehicles[src] = openVeh end
     local entryFeeAmount = Rewards.FeeAmount()
     lobby.prizePool = (lobby.prizePool or 0) + entryFeeAmount
 
@@ -304,32 +354,29 @@ RegisterNetEvent("dps-roxwoodracing:leaveLobby", function()
         end
 
         table.remove(lobby.players, i)
-        if lobby.owner == src then
-          -- owner left → close lobby, refund remaining players if race hasn't started
+        lobby.vehicles[src] = nil
+        if lobby.isStarted then
+          -- Mid-race leaver: clean their client, delete a spec car, and see if the race is now over
+          DeleteSpawnedVehicle(lobby, src)
+          TriggerClientEvent("dps-roxwoodracing:client:destroyprops", src)
+          TriggerClientEvent("dps-roxwoodracing:client:finishTeleport", src, Config.outCoords, lobby.mode == 'open')
+          if pendingChoices[name] then pendingChoices[name].total = math.max(0, pendingChoices[name].total - 1) end
+          if #lobby.players == 0 then
+            Race.EndLobby(name, 'empty')
+          else
+            if lobby.owner == src then lobby.owner = lobby.players[1] end
+            FinishRaceIfDone(name, lobby)
+          end
+        elseif lobby.owner == src then
+          -- owner left before the start: close lobby, refund remaining players
           for _, player in ipairs(lobby.players) do
-            if not lobby.isStarted then
-              Rewards.RefundEntryFee(player, name)
-            end
+            Rewards.RefundEntryFee(player, name)
             ServerNotify(player, Config.Job.label, Locale("lobby_closed_by_owner", name), 'warning')
             TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", player, nil)
           end
           amirState[name] = nil
           lobbies[name] = nil
-
-          -- If the destroyed lobby owned the AMIR scoreboard, promote the next
-          -- running lobby (or fall back to idle best-times if none).
-          if primaryLobby == name then
-            primaryLobby = nil
-            for nextName, nextLob in pairs(lobbies) do
-              if nextLob.isStarted then
-                primaryLobby = nextName
-                break
-              end
-            end
-            if Config.Leaderboard and Config.Leaderboard.enabled and not primaryLobby then
-              exports['dps-roxwoodracing']:ShowIdleLeaderboard()
-            end
-          end
+          PromoteSign(name)
         else
           -- member left → update remaining
           local info = buildLobbyInfo(name, lobby)
@@ -357,6 +404,8 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
 
   local usedPlates = {}
   local spawnedNetIds = {}
+  local failed = {}
+  lob.spawned = lob.spawned or {}
 
   -- Record starting grid order for "Most Improved" calculation
   lob.gridOrder = {}
@@ -370,7 +419,16 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
       local sp = Config.GridSpawnPoints[idx]
       if not sp then break end -- more players than grid slots
       local veh = CreateVehicle(joaat(m), sp.x, sp.y, sp.z, sp.w, true, false)
-      while not DoesEntityExist(veh) do Wait(0) end
+      local deadline = GetGameTimer() + 5000
+      while (not veh or veh == 0 or not DoesEntityExist(veh)) and GetGameTimer() < deadline do Wait(50) end
+      if not veh or veh == 0 or not DoesEntityExist(veh) then
+        print(('[dps-roxwoodracing] spawn failed for model %s (player %s); removing from race'):format(tostring(m), tostring(pid)))
+        ServerNotify(pid, Config.Job.label, Locale('race_cancelled'), 'error')
+        TriggerClientEvent('dps-roxwoodracing:kickedFromLobby', pid, lobbyName, 'spawn')
+        failed[#failed+1] = pid
+        goto nextPlayer
+      end
+      lob.spawned[pid] = veh
       local netId = NetworkGetNetworkIdFromEntity(veh)
       local first, last = Bridge.GetPlayerFirstLast(pid)
       local plate = Plates.FromName(first, last, GetPlayerName(pid), usedPlates)
@@ -389,7 +447,17 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
       })
       spawnedNetIds[#spawnedNetIds+1] = { pid = pid, netId = netId }
     end
+    ::nextPlayer::
   end
+  for _, pid in ipairs(failed) do
+    for i = #lob.players, 1, -1 do if lob.players[i] == pid then table.remove(lob.players, i) end end
+  end
+  if #lob.players == 0 or #spawnedNetIds == 0 then
+    gridLocked = false
+    Race.EndLobby(lobbyName, 'spawn')
+    return
+  end
+  if not table_contains(lob.players, lob.owner) then lob.owner = lob.players[1] end
 
   -- Broadcast all race vehicle netIds to all clients (clients ignore if not inRace)
   TriggerClientEvent("dps-roxwoodracing:raceVehicles", -1, spawnedNetIds)
@@ -610,6 +678,7 @@ end)
 --------------------------------------------------------------------------------
 RegisterNetEvent("dps-roxwoodracing:updateProgress", function(lobbyName, dist)
   local src = source
+  if RateLimit(src, "updateProgress", 100) then return end
   local lob = lobbies[lobbyName]
   if not lob or not lob.isStarted then return end
   -- Verify player is in this lobby
@@ -620,6 +689,11 @@ RegisterNetEvent("dps-roxwoodracing:updateProgress", function(lobbyName, dist)
   dist = math.max(0, math.min(dist, 15000))
 
   lob.progress[src] = dist
+
+  -- One board recompute + broadcast per lobby per 200 ms, however many racers report.
+  local nowTick = GetGameTimer()
+  if lob.lastBoardTick and (nowTick - lob.lastBoardTick) < 200 then return end
+  lob.lastBoardTick = nowTick
 
   local board = {}
   for _, pid in ipairs(lob.players) do
@@ -841,126 +915,147 @@ RegisterNetEvent("dps-roxwoodracing:lapPassed", function(lobbyName)
       })
     end
 
-    -- once everyone’s finished, broadcast the podium and tear down
-    local allFin = true
-    for _, pid in ipairs(lob.players) do
-      if not lob.finished[pid] then allFin = false break end
-    end
-    if allFin then
-      local results, bestLapPlayer, mostImprovedId = Ranking.BuildResults(lob.players, lob.lapTimes, lob.gridOrder,
-        function(pid) return Bridge.GetPlayerName(pid) or ('Player ' .. pid) end)
-
-      -- Pay everyone through the society account, then stamp totals onto the results
-      lob.name = lobbyName
-      local payouts, purseCovered = Rewards.Settle(lob, results, bestLapPlayer)
-      for _, entry in ipairs(results) do entry.payout = payouts[entry.id] and payouts[entry.id].total or 0 end
-
-      -- Broadcast expanded results to all race participants
-      for _, pid in ipairs(lob.players) do
-        TriggerClientEvent("dps-roxwoodracing:finalRanking", pid, {
-          allResults = results,
-          bestLapPlayer = bestLapPlayer,
-          mostImprovedPlayer = mostImprovedId,
-          track = lob.track,
-          purseCovered = purseCovered,
-        })
-        TriggerClientEvent("dps-roxwoodracing:client:destroyprops", pid)
-      end
-
-      -- Save persistent race stats for each player.
-      -- Each call is wrapped in CreateThread so the per-player DB queries
-      -- run concurrently instead of serializing on a full grid.
-      for pos, entry in ipairs(results) do
-        local totalEarnings = entry.payout or 0
-        local pidLocal, posLocal, bestLapLocal = entry.id, pos, entry.bestLap or 0
-        CreateThread(function()
-          Stats.Save(pidLocal, posLocal, lob.track, bestLapLocal, totalEarnings, lob.mode)
-        end)
-      end
-
-      -- Reset leader tracking for this lobby
-      lob.lastLeader = -1
-
-      amirState[lobbyName] = nil
-      lobbies[lobbyName] = nil
-      TriggerClientEvent("dps-roxwoodracing:setLobbyState", -1, next(lobbies) ~= nil)
-
-      -- If this was the primary lobby, promote the next active lobby to drive
-      -- the physical AMIR LED scoreboard. If none is running, resume the idle
-      -- best-times display.
-      local wasPrimary = (primaryLobby == lobbyName)
-      if wasPrimary then
-        primaryLobby = nil
-        for nextName, nextLob in pairs(lobbies) do
-          if nextLob.isStarted then
-            primaryLobby = nextName
-            break
-          end
-        end
-      end
-
-      if Config.Leaderboard and Config.Leaderboard.enabled and wasPrimary and not primaryLobby then
-        exports['dps-roxwoodracing']:ShowIdleLeaderboard()
-      end
-    end
+    FinishRaceIfDone(lobbyName, lob)
   end
 end)
+
+FinishRaceIfDone = function(lobbyName, lob)
+  -- once everyone’s finished, broadcast the podium and tear down
+  local allFin = true
+  for _, pid in ipairs(lob.players) do
+    if not lob.finished[pid] then allFin = false break end
+  end
+  if allFin then
+    local results, bestLapPlayer, mostImprovedId = Ranking.BuildResults(lob.players, lob.lapTimes, lob.gridOrder,
+      function(pid) return Bridge.GetPlayerName(pid) or ('Player ' .. pid) end)
+
+    -- Pay everyone through the society account, then stamp totals onto the results
+    lob.name = lobbyName
+    local payouts, purseCovered = Rewards.Settle(lob, results, bestLapPlayer)
+    for _, entry in ipairs(results) do entry.payout = payouts[entry.id] and payouts[entry.id].total or 0 end
+
+    -- Broadcast expanded results to all race participants
+    for _, pid in ipairs(lob.players) do
+      TriggerClientEvent("dps-roxwoodracing:finalRanking", pid, {
+        allResults = results,
+        bestLapPlayer = bestLapPlayer,
+        mostImprovedPlayer = mostImprovedId,
+        track = lob.track,
+        purseCovered = purseCovered,
+      })
+      TriggerClientEvent("dps-roxwoodracing:client:destroyprops", pid)
+    end
+
+    -- Save persistent race stats for each player.
+    -- Each call is wrapped in CreateThread so the per-player DB queries
+    -- run concurrently instead of serializing on a full grid.
+    for pos, entry in ipairs(results) do
+      local totalEarnings = entry.payout or 0
+      local pidLocal, posLocal, bestLapLocal = entry.id, pos, entry.bestLap or 0
+      CreateThread(function()
+        Stats.Save(pidLocal, posLocal, lob.track, bestLapLocal, totalEarnings, lob.mode)
+      end)
+    end
+
+    -- Reset leader tracking for this lobby
+    lob.lastLeader = -1
+
+    amirState[lobbyName] = nil
+    lobbies[lobbyName] = nil
+    TriggerClientEvent("dps-roxwoodracing:setLobbyState", -1, next(lobbies) ~= nil)
+
+    -- If this was the primary lobby, promote the next active lobby to drive
+    -- the physical AMIR LED scoreboard. If none is running, resume the idle
+    -- best-times display.
+    local wasPrimary = (primaryLobby == lobbyName)
+    if wasPrimary then
+      primaryLobby = nil
+      for nextName, nextLob in pairs(lobbies) do
+        if nextLob.isStarted then
+          primaryLobby = nextName
+          break
+        end
+      end
+    end
+
+    if Config.Leaderboard and Config.Leaderboard.enabled and wasPrimary and not primaryLobby then
+      exports['dps-roxwoodracing']:ShowIdleLeaderboard()
+    end
+  end
+  
+end
 
 --------------------------------------------------------------------------------
 -- FINISH TELEPORT, FUEL, ETC.
 --------------------------------------------------------------------------------
-RegisterNetEvent("dps-roxwoodracing:finishTeleport", function(coords)
-  TriggerClientEvent("dps-roxwoodracing:client:finishTeleport", source, coords)
-end)
-
-RegisterNetEvent("dps-roxwoodracing:client:fillFuel", function(netId)
+-- Fuel sync from a pit stop: only for a racer's own race car, only while it sits in a pit box.
+local function AuthorisedFuelVehicle(src, netId)
+  netId = tonumber(netId)
+  if not netId then return nil end
+  local name, lob = findLobbyByPlayer(src)
+  if not lob or not lob.isStarted then return nil end
+  local mine = (lob.spawned and lob.spawned[src] and NetworkGetNetworkIdFromEntity(lob.spawned[src]) == netId)
+            or (lob.vehicles and lob.vehicles[src] and lob.vehicles[src].netId == netId)
+  if not mine then return nil end
   local v = NetworkGetEntityFromNetworkId(netId)
-  if not v or v == 0 or not DoesEntityExist(v) then return end
-  -- Server-safe: only use ox_fuel statebag here; most exports are client-only
-  if GetResourceState("ox_fuel") == "started" then
-    local st = Entity(v).state
-    if st and st.set then st:set("fuel", 100.0, true) end
+  if not v or v == 0 or not DoesEntityExist(v) then return nil end
+  local pos = GetEntityCoords(v)
+  for _, zone in ipairs(Config.PitCrewZones) do
+    if #(pos - vector3(zone.coords.x, zone.coords.y, zone.coords.z)) <= (zone.radius + 6.0) then return v end
   end
-  -- Ask clients to apply native fuel locally (driver will usually own the entity)
-  TriggerClientEvent('dps-roxwoodracing:client:setFuel', -1, netId, 100.0)
-end)
+  return nil
+end
 
---------------------------------------------------------------------------------
--- SERVER-AUTHORITATIVE FUEL SYNC (called from client after pit stop)
---------------------------------------------------------------------------------
 RegisterNetEvent("dps-roxwoodracing:server:setFuel", function(netId, level)
-  local src = source -- reserved if we later want to restrict
-  if type(netId) ~= 'number' or type(level) ~= 'number' then return end
+  local src = source
+  if RateLimit(src, "setFuel", 150) then return end
+  level = tonumber(level)
+  if not level then return end
   if level < 0 then level = 0 end; if level > 100 then level = 100 end
-  local v = NetworkGetEntityFromNetworkId(netId)
-  if not v or v == 0 or not DoesEntityExist(v) then return end
-
-  -- Native baseline cannot be called server-side; rely on client + fuel scripts
-  -- Avoid calling client-only exports from server (causes 'No such export' spam)
-
-  -- ox_fuel uses statebags
+  local v = AuthorisedFuelVehicle(src, netId)
+  if not v then return end
   if GetResourceState("ox_fuel") == "started" then
     local st = Entity(v).state
     if st and st.set then st:set("fuel", level + 0.0, true) end
   end
+  TriggerClientEvent('dps-roxwoodracing:client:setFuel', -1, netId, level + 0.0)
+end)
 
-  if Config.DebugPrints then
-    print(("[dps-roxwoodracing] Server fuel sync: netId=%s -> %.1f"):format(tostring(netId), level))
+-- Disconnects: drop the player from any lobby, refund if the race has not started,
+-- delete their spec car, and finish the race if they were the last one still driving.
+AddEventHandler('playerDropped', function()
+  local src = source
+  local name, lob = findLobbyByPlayer(src)
+  if not lob then return end
+  for i = #lob.players, 1, -1 do if lob.players[i] == src then table.remove(lob.players, i) end end
+  lob.vehicles[src] = nil
+  DeleteSpawnedVehicle(lob, src)
+  if not lob.isStarted then
+    Rewards.RefundEntryFee(src, name)
+    lob.prizePool = math.max(0, (lob.prizePool or 0) - Rewards.FeeAmount())
   end
+  if #lob.players == 0 then
+    Race.EndLobby(name, 'empty')
+    return
+  end
+  if lob.owner == src then lob.owner = lob.players[1] end
+  if pendingChoices[name] then
+    pendingChoices[name].total = math.max(0, pendingChoices[name].total - 1)
+    if pendingChoices[name].selected[src] then pendingChoices[name].received = math.max(0, pendingChoices[name].received - 1) end
+  end
+  if lob.isStarted then
+    FinishRaceIfDone(name, lob)
+  else
+    local info = buildLobbyInfo(name, lob)
+    for _, pid in ipairs(lob.players) do TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", pid, info) end
+  end
+end)
 
-  -- Reassert on clients too to overcome any late ticks from external scripts
-  CreateThread(function()
-    local tries = { 200, 800 }
-    for _, waitMs in ipairs(tries) do
-      Wait(waitMs)
-      -- Reassert on clients; external scripts may tick and revert
-      TriggerClientEvent('dps-roxwoodracing:client:setFuel', -1, netId, level + 0.0)
-      if DoesEntityExist(v) and GetResourceState("ox_fuel") == "started" then
-        local st = Entity(v).state
-        if st and st.set then st:set("fuel", level + 0.0, true) end
-      end
-    end
-  end)
+AddEventHandler('onResourceStop', function(res)
+  if res ~= GetCurrentResourceName() then return end
+  for _, lob in pairs(lobbies) do
+    for pid in pairs(lob.spawned or {}) do DeleteSpawnedVehicle(lob, pid) end
+  end
 end)
 
 --------------------------------------------------------------------------------
@@ -968,7 +1063,6 @@ end)
 --------------------------------------------------------------------------------
 if Config.Leaderboard and Config.Leaderboard.enabled then
   CreateThread(function()
-    -- Wait for sv_leaderboard.lua exports to be registered and DB to be ready
     Wait(3000)
     exports['dps-roxwoodracing']:ShowIdleLeaderboard()
   end)

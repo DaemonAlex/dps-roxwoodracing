@@ -8,6 +8,13 @@ local categoryLabel = { compacts = 'Compacts', sedans = 'Sedans', suvs = 'SUVs',
                         sportsclassics = 'Sports Classics', sports = 'Sports', super = 'Super', motorcycles = 'Motorcycles',
                         offroad = 'Off-road', vans = 'Vans', pickups = 'Pickups', openwheel = 'Open Wheel', race = 'Race' }
 
+-- Registry category -> GetVehicleClass id (the client-side class cannot be read on the server).
+local categoryToClass = { compacts = 0, sedans = 1, suvs = 2, coupes = 3, muscle = 4, sportsclassics = 5, sports = 6,
+                          super = 7, motorcycles = 8, offroad = 9, industrial = 10, utility = 11, vans = 12, cycles = 13,
+                          boats = 14, helicopters = 15, planes = 16, service = 17, emergency = 18, military = 19,
+                          commercial = 20, trains = 21, openwheel = 22, race = 7, pickups = 9 }
+local hashToClass = nil
+
 local function registry()
   if Bridge.Framework == 'qbx' or Bridge.Framework == 'qb' then
     local ok, v = pcall(function()
@@ -78,6 +85,19 @@ function Lobbies.SpecCatalogue()
   return Lobbies._catalogue
 end
 
+---@param modelHash number  @return number|nil vehicle class id when the model is in the registry
+function Lobbies.ClassForModel(modelHash)
+  if not hashToClass then
+    hashToClass = {}
+    local reg = registry()
+    for model, v in pairs(reg or {}) do
+      local cls = categoryToClass[(v.category or ''):lower()]
+      if cls then hashToClass[v.hash or joaat(model)] = cls end
+    end
+  end
+  return hashToClass[modelHash]
+end
+
 function Lobbies.IsModelAllowed(classKey, model)
   local cat = Lobbies.SpecCatalogue()
   local cls = cat.classes[classKey]
@@ -100,9 +120,9 @@ function Lobbies.VerifyOwnedVehicle(pid, plate)
   plate = plate:gsub('^%s+', ''):gsub('%s+$', '')
   local n
   if Bridge.Framework == 'esx' then
-    n = MySQL.scalar.await('SELECT COUNT(*) FROM owned_vehicles WHERE plate = ? AND owner = ?', { plate, cid })
+    n = MySQL.scalar.await('SELECT COUNT(*) FROM owned_vehicles WHERE TRIM(plate) = ? AND owner = ?', { plate, cid })
   else
-    n = MySQL.scalar.await('SELECT COUNT(*) FROM player_vehicles WHERE plate = ? AND citizenid = ?', { plate, cid })
+    n = MySQL.scalar.await('SELECT COUNT(*) FROM player_vehicles WHERE TRIM(plate) = ? AND citizenid = ?', { plate, cid })
   end
   return (tonumber(n) or 0) > 0
 end

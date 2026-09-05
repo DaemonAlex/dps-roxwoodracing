@@ -16,9 +16,13 @@ function Payouts.PurseTotal(results, bestLapPid, eco)
   return sum
 end
 
----@return table payouts (pid -> parts), boolean purseCovered
-function Payouts.Compute(results, bestLapPid, eco, pool, balance)
-  local covered = (balance or 0) >= Payouts.PurseTotal(results, bestLapPid, eco)
+---@param allowPurse boolean|nil false = pool only (e.g. too few racers); default true
+---@return table payouts (pid -> parts), boolean purseCovered, string|nil reason ('solo' | 'short')
+function Payouts.Compute(results, bestLapPid, eco, pool, balance, allowPurse)
+  local reason = nil
+  if allowPurse == false then reason = 'solo'
+  elseif (balance or 0) < Payouts.PurseTotal(results, bestLapPid, eco) then reason = 'short' end
+  local covered = reason == nil
   local out = {}
   for pos, e in ipairs(results) do
     local position, participation, bestLap = 0, 0, 0
@@ -28,5 +32,5 @@ function Payouts.Compute(results, bestLapPid, eco, pool, balance)
     out[e.id] = { position = position, participation = participation, bestLap = bestLap, pool = poolPay,
                   total = position + participation + bestLap + poolPay }
   end
-  return out, covered
+  return out, covered, reason
 end

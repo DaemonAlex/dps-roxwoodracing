@@ -348,7 +348,7 @@
       var trackEl = document.getElementById('results-track');
       var tbody = document.getElementById('results-body');
 
-      trackEl.textContent = data.track ? data.track.replace(/_/g, ' ') : '';
+      trackEl.textContent = (data.track ? data.track.replace(/_/g, ' ') : '') + (data.purseNote ? '  —  ' + data.purseNote : '');
       tbody.innerHTML = '';
 
       results.forEach(function(entry) {
