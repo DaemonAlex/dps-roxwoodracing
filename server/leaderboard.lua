@@ -66,7 +66,7 @@ local idleStopFlag = false
 --- Gather top 9 best lap times from all players across all tracks.
 --- Returns { names = {string...}, times = {number...} } sorted by time ascending.
 local function GetTopBestTimes()
-    local rows = MySQL.query.await('SELECT citizenid, best_laps FROM dps_roxwoodracing_stats WHERE best_laps IS NOT NULL AND best_laps != ?', { '{}' })
+    local rows = MySQL.query.await(('SELECT citizenid, best_laps FROM %s WHERE best_laps IS NOT NULL AND best_laps != ?'):format(Stats.TABLE), { '{}' })
     if not rows or #rows == 0 then return nil end
 
     local entries = {}

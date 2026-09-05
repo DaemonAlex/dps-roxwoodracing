@@ -138,6 +138,15 @@ local function DeleteSpawnedVehicle(lob, pid)
   if lob.spawned then lob.spawned[pid] = nil end
 end
 
+-- Refund exactly what this player paid into this lobby (recorded receipt), and take it out of the pool.
+local function RefundLobbyFee(lob, lobbyName, pid)
+  local receipt = lob.fees and lob.fees[pid]
+  if not receipt then return end
+  lob.fees[pid] = nil
+  lob.prizePool = math.max(0, (lob.prizePool or 0) - (receipt.amount or 0))
+  Rewards.RefundEntryFee(pid, lobbyName, receipt)
+end
+
 local function PromoteSign(lobbyName)
   if primaryLobby ~= lobbyName then return end
   primaryLobby = nil
@@ -173,11 +182,11 @@ function Race.EndLobby(lobbyName, reason)
   local lob = lobbies[lobbyName]
   if not lob then return end
   for _, pid in ipairs(lob.players) do
-    if not lob.isStarted then Rewards.RefundEntryFee(pid, lobbyName) end
+    if not lob.raceLive then RefundLobbyFee(lob, lobbyName, pid) end
     TriggerClientEvent('dps-roxwoodracing:kickedFromLobby', pid, lobbyName, reason or 'ended')
     TriggerClientEvent('dps-roxwoodracing:client:destroyprops', pid)
     TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', pid, nil)
-    if lob.isStarted then TriggerClientEvent('dps-roxwoodracing:client:finishTeleport', pid, Config.outCoords, lob.mode == 'open') end
+    if lob.raceLive then TriggerClientEvent('dps-roxwoodracing:client:finishTeleport', pid, Config.outCoords, lob.mode == 'open') end
     DeleteSpawnedVehicle(lob, pid)
   end
   pendingChoices[lobbyName] = nil
@@ -227,13 +236,16 @@ RegisterNetEvent("dps-roxwoodracing:createLobby", function(args)
     if not okv then ServerNotify(src, Config.Job.label, Locale(err, Config.OpenClasses[c.class].label), 'error') return end
     openVeh = v
   end
-  if not Rewards.ChargeEntryFee(src, c.name) then return end
+  local paid, receipt = Rewards.ChargeEntryFee(src, c.name)
+  if not paid then return end
   lobbies[c.name] = {
     name = c.name, owner = src, track = c.track, laps = c.laps, mode = c.mode, class = c.class, tune = c.tune,
     players = { src }, vehicles = {}, checkpointProgress = {}, isStarted = false, lapProgress = {}, finished = {},
-    lapTimes = {}, startTime = {}, progress = {}, prizePool = Rewards.FeeAmount(), spawned = {},
+    lapTimes = {}, startTime = {}, progress = {}, prizePool = 0, spawned = {}, fees = {}, raceLive = false,
   }
   if openVeh then lobbies[c.name].vehicles[src] = openVeh end
+  lobbies[c.name].fees[src] = receipt
+  lobbies[c.name].prizePool = receipt and receipt.amount or 0
   if Config.DebugPrints then print("[DEBUG] Lobby created: " .. c.name .. " mode=" .. c.mode) end
   ServerNotify(src, Config.Job.label, Locale("lobby_created", c.name), 'success')
   TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', src, buildLobbyInfo(c.name, lobbies[c.name]))
@@ -279,10 +291,11 @@ RegisterNetEvent("dps-roxwoodracing:joinLobby", function(lobbyName, vehicle)
       openVeh = v
     end
     -- Charge entry fee before adding to lobby
-    if not Rewards.ChargeEntryFee(src, lobbyName) then return end
+    local paid, receipt = Rewards.ChargeEntryFee(src, lobbyName)
+    if not paid then return end
     if openVeh then lobby.vehicles[src] = openVeh end
-    local entryFeeAmount = Rewards.FeeAmount()
-    lobby.prizePool = (lobby.prizePool or 0) + entryFeeAmount
+    lobby.fees[src] = receipt
+    lobby.prizePool = (lobby.prizePool or 0) + (receipt and receipt.amount or 0)
 
     table.insert(lobby.players, src)
     -- BROADCAST who joined
@@ -345,22 +358,24 @@ RegisterNetEvent("dps-roxwoodracing:leaveLobby", function()
   for name, lobby in pairs(lobbies) do
     for i, id in ipairs(lobby.players) do
       if id == src then
-        -- Refund entry fee if race hasn't started
-        if not lobby.isStarted then
-          Rewards.RefundEntryFee(src, name)
+        -- Refund unless the race is actually under way
+        if not lobby.raceLive then
+          RefundLobbyFee(lobby, name, src)
           _refundCD[src] = GetGameTimer()
-          local entryFeeAmount = Rewards.FeeAmount()
-          lobby.prizePool = math.max(0, (lobby.prizePool or 0) - entryFeeAmount)
         end
 
         table.remove(lobby.players, i)
         lobby.vehicles[src] = nil
         if lobby.isStarted then
-          -- Mid-race leaver: clean their client, delete a spec car, and see if the race is now over
+          -- Leaver after the start button: clean their client, delete a spec car, and see if the race is now over
           DeleteSpawnedVehicle(lobby, src)
           TriggerClientEvent("dps-roxwoodracing:client:destroyprops", src)
-          TriggerClientEvent("dps-roxwoodracing:client:finishTeleport", src, Config.outCoords, lobby.mode == 'open')
-          if pendingChoices[name] then pendingChoices[name].total = math.max(0, pendingChoices[name].total - 1) end
+          if lobby.raceLive then TriggerClientEvent("dps-roxwoodracing:client:finishTeleport", src, Config.outCoords, lobby.mode == 'open') end
+          local pc = pendingChoices[name]
+          if pc then
+            pc.total = math.max(0, pc.total - 1)
+            if pc.selected[src] then pc.selected[src] = nil; pc.received = math.max(0, pc.received - 1) end
+          end
           if #lobby.players == 0 then
             Race.EndLobby(name, 'empty')
           else
@@ -370,7 +385,7 @@ RegisterNetEvent("dps-roxwoodracing:leaveLobby", function()
         elseif lobby.owner == src then
           -- owner left before the start: close lobby, refund remaining players
           for _, player in ipairs(lobby.players) do
-            Rewards.RefundEntryFee(player, name)
+            RefundLobbyFee(lobby, name, player)
             ServerNotify(player, Config.Job.label, Locale("lobby_closed_by_owner", name), 'warning')
             TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", player, nil)
           end
@@ -415,7 +430,13 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
 
   for idx, pid in ipairs(lob.players) do
     local m = selected[pid]
-    if m then
+    if not m then
+      -- Slot closed on them (host left mid-picker etc.): refund and drop, never a silent skip
+      RefundLobbyFee(lob, lobbyName, pid)
+      TriggerClientEvent('dps-roxwoodracing:kickedFromLobby', pid, lobbyName, 'nopick')
+      TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', pid, nil)
+      failed[#failed+1] = pid
+    else
       local sp = Config.GridSpawnPoints[idx]
       if not sp then break end -- more players than grid slots
       local veh = CreateVehicle(joaat(m), sp.x, sp.y, sp.z, sp.w, true, false)
@@ -424,7 +445,9 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
       if not veh or veh == 0 or not DoesEntityExist(veh) then
         print(('[dps-roxwoodracing] spawn failed for model %s (player %s); removing from race'):format(tostring(m), tostring(pid)))
         ServerNotify(pid, Config.Job.label, Locale('race_cancelled'), 'error')
+        RefundLobbyFee(lob, lobbyName, pid)
         TriggerClientEvent('dps-roxwoodracing:kickedFromLobby', pid, lobbyName, 'spawn')
+        TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', pid, nil)
         failed[#failed+1] = pid
         goto nextPlayer
       end
@@ -458,6 +481,7 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
     return
   end
   if not table_contains(lob.players, lob.owner) then lob.owner = lob.players[1] end
+  lob.raceLive = true
 
   -- Broadcast all race vehicle netIds to all clients (clients ignore if not inRace)
   TriggerClientEvent("dps-roxwoodracing:raceVehicles", -1, spawnedNetIds)
@@ -502,6 +526,7 @@ local function StartOpenRace(lobbyName, lob)
       netIds[#netIds+1] = { pid = pid, netId = v.netId }
     end
   end
+  lob.raceLive = true
   TriggerClientEvent('dps-roxwoodracing:raceVehicles', -1, netIds)
   if Config.Ghosting.enabled and Config.Ghosting.startGhosted then
     lob.ghostActive = true
@@ -618,8 +643,11 @@ RegisterNetEvent("dps-roxwoodracing:startRace", function(lobbyName)
         local pid = lob.players[i]
         if not data.selected[pid] then
           ServerNotify(pid, Config.Job.label, Locale("vehicle_select_timeout"), 'warning')
+          RefundLobbyFee(lob, lobbyName, pid)
           TriggerClientEvent("dps-roxwoodracing:kickedFromLobby", pid, lobbyName, "timeout")
+          TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", pid, nil)
           table.remove(lob.players, i)
+          lob.vehicles[pid] = nil
         else
           table.insert(keep, pid)
         end
@@ -633,12 +661,9 @@ RegisterNetEvent("dps-roxwoodracing:startRace", function(lobbyName)
       pendingChoices[lobbyName] = nil
       SpawnRaceVehicles(lobbyName, lob, data.selected)
     else
-      -- nobody left or nobody selected: cancel race
+      -- nobody left or nobody selected: close the lobby properly (refunds, sign, state)
       pendingChoices[lobbyName] = nil
-      lob.isStarted = false
-      for _, pid in ipairs(lob.players) do
-        ServerNotify(pid, Config.Job.label, Locale("race_cancelled"), 'error')
-      end
+      Race.EndLobby(lobbyName, 'timeout')
     end
   end)
   for _, pid in ipairs(lob.players) do
@@ -1021,27 +1046,25 @@ RegisterNetEvent("dps-roxwoodracing:server:setFuel", function(netId, level)
   TriggerClientEvent('dps-roxwoodracing:client:setFuel', -1, netId, level + 0.0)
 end)
 
--- Disconnects: drop the player from any lobby, refund if the race has not started,
--- delete their spec car, and finish the race if they were the last one still driving.
-AddEventHandler('playerDropped', function()
-  local src = source
+-- Remove a player from whatever lobby they are in: disconnect, character unload, or a client
+-- that could not stream its race car. Refunds if the race never went live, deletes their spec car,
+-- promotes a new host, finishes the race if the others are done, closes an empty lobby.
+local function RemovePlayer(src, reason)
   local name, lob = findLobbyByPlayer(src)
   if not lob then return end
   for i = #lob.players, 1, -1 do if lob.players[i] == src then table.remove(lob.players, i) end end
   lob.vehicles[src] = nil
   DeleteSpawnedVehicle(lob, src)
-  if not lob.isStarted then
-    Rewards.RefundEntryFee(src, name)
-    lob.prizePool = math.max(0, (lob.prizePool or 0) - Rewards.FeeAmount())
-  end
+  if not lob.raceLive or reason == 'spawnfail' then RefundLobbyFee(lob, name, src) end
   if #lob.players == 0 then
     Race.EndLobby(name, 'empty')
     return
   end
   if lob.owner == src then lob.owner = lob.players[1] end
-  if pendingChoices[name] then
-    pendingChoices[name].total = math.max(0, pendingChoices[name].total - 1)
-    if pendingChoices[name].selected[src] then pendingChoices[name].received = math.max(0, pendingChoices[name].received - 1) end
+  local pc = pendingChoices[name]
+  if pc then
+    pc.total = math.max(0, pc.total - 1)
+    if pc.selected[src] then pc.selected[src] = nil; pc.received = math.max(0, pc.received - 1) end
   end
   if lob.isStarted then
     FinishRaceIfDone(name, lob)
@@ -1049,6 +1072,21 @@ AddEventHandler('playerDropped', function()
     local info = buildLobbyInfo(name, lob)
     for _, pid in ipairs(lob.players) do TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", pid, info) end
   end
+end
+
+AddEventHandler('playerDropped', function() RemovePlayer(source, 'dropped') end)
+-- Multichar switch: source survives, the character does not. Same cleanup as a disconnect.
+AddEventHandler('QBCore:Server:OnPlayerUnload', function(src) RemovePlayer(src, 'unload') end)
+
+-- The client could not resolve its race car within its own timeout: treat it like a failed spawn.
+RegisterNetEvent('dps-roxwoodracing:spawnFailed', function(lobbyName)
+  local src = source
+  if RateLimit(src, 'spawnFailed', 2000) then return end
+  local lob = lobbies[lobbyName]
+  if not lob or not table_contains(lob.players, src) then return end
+  if (lob.lapProgress[src] or 0) > 0 or (lob.checkpointProgress[src] or 0) > 0 then return end
+  TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', src, nil)
+  RemovePlayer(src, 'spawnfail')
 end)
 
 AddEventHandler('onResourceStop', function(res)

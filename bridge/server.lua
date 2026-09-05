@@ -93,6 +93,25 @@ function Bridge.GetMoney(pid, mtype)
   return 0
 end
 
+-- Pay a character by identifier even when they are offline (qbx supports this natively).
+function Bridge.AddMoneyByIdentifier(identifier, mtype, amount, reason)
+  if amount <= 0 then return true end
+  if fw == 'qbx' then
+    local ok, res = pcall(function() return exports.qbx_core:AddMoney(identifier, mapMoneyType(mtype), amount, reason) end)
+    return ok and res == true
+  elseif fw == 'qb' then
+    local P = exports['qb-core']:GetCoreObject().Functions.GetPlayerByCitizenId(identifier)
+    if not P then return false end
+    return P.Functions.AddMoney(mapMoneyType(mtype), amount, reason) ~= false
+  elseif fw == 'esx' then
+    local x = esx().GetPlayerFromIdentifier(identifier)
+    if not x then return false end
+    if mapMoneyType(mtype) == 'bank' then x.addAccountMoney('bank', amount) else x.addMoney(amount) end
+    return true
+  end
+  return false
+end
+
 function Bridge.GetJob(pid)
   if fw == 'qbx' or fw == 'qb' then
     local P = getPlayer(pid)
