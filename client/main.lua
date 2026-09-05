@@ -1156,3 +1156,37 @@ RegisterCommand('racestats', function()
     end
     Notify(Locale("stats_command_header"), table.concat(lines, "\n"), "inform", 12000)
 end, false)
+
+--------------------------------------------------------------------------------
+-- STAFF: Raceway Control (boss menu item + /raceway)
+--------------------------------------------------------------------------------
+local function openControl()
+  if not Bridge.HasJob(Config.Job.name, Config.Job.grades.marshal) then Notify(Config.Job.label, Locale('staff_only'), 'error') return end
+  local snap = lib.callback.await('dps-roxwoodracing:staff:snapshot', false)
+  if not snap then return end
+  local options = {}
+  for _, l in ipairs(snap.lobbies) do
+    options[#options+1] = { title = ('%s  %s  %s  %d racers'):format(l.name, l.track, l.mode, l.players), description = l.started and 'Running' or 'Waiting',
+      onSelect = function()
+        local pick = lib.inputDialog(l.name, { { type = 'select', label = 'Action', required = true, options = { { value = 'endRace', label = 'End race' }, { value = 'names', label = 'Sign: names' }, { value = 'toggle', label = 'Sign: names + times' } } } })
+        if not pick then return end
+        if pick[1] == 'endRace' then TriggerServerEvent('dps-roxwoodracing:staff:action', 'endRace', { lobby = l.name })
+        else TriggerServerEvent('dps-roxwoodracing:staff:action', 'signMode', { lobby = l.name, mode = pick[1] }) end
+      end }
+  end
+  options[#options+1] = { title = 'Clear track props', icon = 'broom', onSelect = function() TriggerServerEvent('dps-roxwoodracing:staff:action', 'clearProps') end }
+  if Bridge.HasJob(Config.Job.name, Config.Job.grades.director) then
+    options[#options+1] = { title = ('Account balance: $%s'):format(snap.balance), description = ('Purse source: %s'):format(snap.purseSource), disabled = true }
+    local fields = { { 'entryfee', 'Entry fee' }, { 'payout1', '1st place' }, { 'payout2', '2nd place' }, { 'payout3', '3rd place' }, { 'showup', 'Show-up bonus' }, { 'bestlap', 'Fastest lap bonus' } }
+    for _, f in ipairs(fields) do
+      options[#options+1] = { title = ('%s: $%s'):format(f[2], snap[f[1]]), onSelect = function()
+        local v = lib.inputDialog(f[2], { { type = 'number', label = 'Amount', default = snap[f[1]], min = 0 } })
+        if v and v[1] then TriggerServerEvent('dps-roxwoodracing:staff:action', 'setSetting', { key = f[1], value = v[1] }) end
+      end }
+    end
+  end
+  lib.registerContext({ id = 'dps_roxwoodracing_control', title = Locale('raceway_control'), options = options })
+  lib.showContext('dps_roxwoodracing_control')
+end
+RegisterNetEvent('dps-roxwoodracing:client:openControl', openControl)
+RegisterCommand('raceway', openControl, false)
