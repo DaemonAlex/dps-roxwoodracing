@@ -119,51 +119,27 @@ end
 local function ShowIdleLeaderboard()
     if not Config.Leaderboard or not Config.Leaderboard.enabled then return end
     if not Config.Leaderboard.idleDisplay then return end
-    if idleRunning then return end -- already running
-
+    if idleRunning then return end
     idleRunning = true
     idleStopFlag = false
-
     CreateThread(function()
-        -- Small delay to let MySQL init on resource start
         Wait(2000)
-
+        if idleStopFlag then idleRunning = false return end
         local data = GetTopBestTimes()
         if not data then
-            -- No stats yet; show default "SPEEDWAY" text
-            showText("SPEED", { "R", "O", "X", "W", "O", "O", "D", "", "" })
-            idleRunning = false
-            return
+            showText('BEST', { 'R', 'O', 'X', 'W', 'O', 'O', 'D', '', '' })
+        else
+            -- One push of names, one of times; the board is re-pushed only when a record changes.
+            showPlayerNames('BEST', data.names)
         end
-
-        local toggleMs = Config.Leaderboard.toggleIntervalMs or 2000
-        local showNames = true
-
-        while not idleStopFlag do
-            if showNames then
-                showPlayerNames("BEST", data.names)
-            else
-                showPlayerTimes("BEST", data.times)
-            end
-            showNames = not showNames
-
-            -- Wait in small increments so we can respond to stop flag quickly
-            local waited = 0
-            while waited < toggleMs and not idleStopFlag do
-                Wait(250)
-                waited = waited + 250
-            end
-
-            -- Periodically refresh data (every 30s worth of toggles)
-            if not idleStopFlag then
-                local fresh = GetTopBestTimes()
-                if fresh then data = fresh end
-            end
-        end
-
         idleRunning = false
     end)
 end
+
+-- A new track record was saved: refresh the idle board once (no race running)
+AddEventHandler('dps-roxwoodracing:recordSet', function()
+    if not idleStopFlag and not idleRunning then ShowIdleLeaderboard() end
+end)
 
 --- Stop the idle leaderboard display loop.
 local function StopIdleLeaderboard()
