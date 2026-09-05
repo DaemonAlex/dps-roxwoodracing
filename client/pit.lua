@@ -400,16 +400,16 @@ CreateThread(function()
                 local startFuel = math.max(0.0, GetVehicleFuelLevel(veh))
                 for i = 1, refuelSteps do
                     local lvl = startFuel + (100 - startFuel) * (i / refuelSteps)
-                    if SetFuelLevel then SetFuelLevel(veh, lvl) else SetVehicleFuelLevel(veh, lvl) end
+                    Fuel.Set(veh, lvl)
                     Wait(refuelStepMs)
                 end
                 -- ensure final sync across fuel scripts
-                if SetFullFuel then SetFullFuel(veh) else SetVehicleFuelLevel(veh, 100.0) end
+                Fuel.SetFull(veh)
                 -- verify and immediately re-assert 100% if any script lags a tick updating its own store (e.g., LegacyFuel)
                 Wait(200)
                 local readBack = GetVehicleFuelLevel(veh)
                 if readBack < 99.0 then
-                    if SetFullFuel then SetFullFuel(veh) else SetVehicleFuelLevel(veh, 100.0) end
+                    Fuel.SetFull(veh)
                     local nid = NetworkGetNetworkIdFromEntity(veh)
                     if nid and nid ~= 0 then TriggerServerEvent('dps-roxwoodracing:server:setFuel', nid, 100.0) end
                 end
@@ -519,7 +519,7 @@ CreateThread(function()
                     Wait(400)
                     local lvl = GetVehicleFuelLevel(veh)
                     if lvl < 99.0 then
-                        if SetFullFuel then SetFullFuel(veh) else SetVehicleFuelLevel(veh, 100.0) end
+                        Fuel.SetFull(veh)
                         local nid = NetworkGetNetworkIdFromEntity(veh)
                         if nid and nid ~= 0 then TriggerServerEvent('dps-roxwoodracing:server:setFuel', nid, 100.0) end
                     end

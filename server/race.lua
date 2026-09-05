@@ -5,7 +5,7 @@
 -- Bridge.GetPlayerIdentifier(), Bridge.AddMoney(), etc.
 
 --------------------------------------------------------------------------------
--- server-side notification helper (routes through client SpeedwayNotify)
+-- server-side notification helper (routes through client Notify)
 --------------------------------------------------------------------------------
 local function ServerNotify(target, title, description, ntype, duration)
   TriggerClientEvent('dps-roxwoodracing:client:notify', target, title, description, ntype, duration)
@@ -697,7 +697,7 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
       SetVehicleNumberPlateText(veh, plate)
       SetVehicleDoorsLocked(veh, 1)
       TriggerClientEvent("dps-roxwoodracing:client:fillFuel", pid, netId)
-      TriggerClientEvent("dps-roxwoodracing:client:giveKeys", pid, netId)
+      TriggerClientEvent("dps-roxwoodracing:client:giveKeys", pid, netId, plate)
       TriggerClientEvent("dps-roxwoodracing:prepareStart", pid, {
         track = lob.track,
         laps  = lob.laps,

@@ -1,109 +1,37 @@
--- client/fuel.lua
-
-local FuelAPIs = {
-  { name = "LegacyFuel" },
-  { name = "cdn-fuel" },
-  { name = "okokGasStation" },
-  { name = "lc_fuel" },
-  { name = "qs-fuelstations" },
+-- Fuel. ox_fuel uses the entity statebag; others use their export; natives last.
+Fuel = {}
+Fuel.Provider = 'native'
+local exportsByName = {
+  ['LegacyFuel']      = function(veh, lvl) exports['LegacyFuel']:SetFuel(veh, lvl) end,
+  ['cdn-fuel']        = function(veh, lvl) exports['cdn-fuel']:SetFuel(veh, lvl) end,
+  ['okokGasStation']  = function(veh, lvl) exports['okokGasStation']:SetFuel(veh, lvl) end,
+  ['qs-fuelstations'] = function(veh, lvl) exports['qs-fuelstations']:SetFuel(veh, lvl) end,
 }
-
-local activeSetters = {}
-
-CreateThread(function()
-  -- Helper to push a setter if the export function exists under various common names
-  local function tryRegister(apiName)
-    local ex = exports[apiName]
-    if not ex then return false end
-    local candidates = { "SetFuel", "setFuel", "SetVehicleFuel", "SetVehFuel" }
-    for _, fname in ipairs(candidates) do
-      if ex[fname] then
-        table.insert(activeSetters, function(veh, lvl)
-          -- Try direct call pattern common in exports tables
-          local ok = pcall(function()
-            exports[apiName][fname](veh, lvl)
-          end)
-          if not ok then
-            -- Fallback: method-style (colon) semantics
-            pcall(function()
-              exports[apiName][fname](exports[apiName], veh, lvl)
-            end)
-          end
-        end)
-        print(("[dps-roxwoodracing] Fuel integration: %s (%s) detected"):format(apiName, fname))
-        return true
-      end
-    end
-    return false
-  end
-
-  for _, api in ipairs(FuelAPIs) do
-    if GetResourceState(api.name) == "started" then
-      local ok = false
-      -- Prefer explicit, known-good path for LegacyFuel
-      if api.name == 'LegacyFuel' then
-        ok = true
-        table.insert(activeSetters, function(veh, lvl)
-          -- LegacyFuel canonical export
-          pcall(function() exports['LegacyFuel']:SetFuel(veh, lvl) end)
-        end)
-        print("[dps-roxwoodracing] Fuel integration: LegacyFuel (SetFuel) detected [explicit]")
-      end
-      -- Explicit handling for qs-fuelstations
-      if api.name == 'qs-fuelstations' then
-        ok = true
-        table.insert(activeSetters, function(veh, lvl)
-          -- qs-fuelstations uses SetFuel export
-          pcall(function() exports['qs-fuelstations']:SetFuel(veh, lvl) end)
-        end)
-        print("[dps-roxwoodracing] Fuel integration: qs-fuelstations (SetFuel) detected [explicit]")
-      end
-      if not ok then
-        ok = tryRegister(api.name)
-      end
-      if not ok and api.name == "lc_fuel" then
-        print("[dps-roxwoodracing] lc_fuel detected but no known SetFuel export; will use natives + server sync")
-      end
-    end
-  end
-end)
-
--- Set fuel to a specific percentage across supported fuel scripts and natives
-function SetFuelLevel(veh, level)
-  SetVehicleFuelLevel(veh, level)
-  for _, setter in ipairs(activeSetters) do
-    setter(veh, level)
-  end
-  if GetResourceState("ox_fuel") == "started" then
-    local ent = Entity(veh)
-    if ent and ent.state and ent.state.set then ent.state:set("fuel", level, true) end
+if GetResourceState('ox_fuel') == 'started' or GetResourceState('ox_fuel') == 'starting' then
+  Fuel.Provider = 'ox_fuel'
+else
+  for name in pairs(exportsByName) do
+    if GetResourceState(name) == 'started' then Fuel.Provider = name break end
   end
 end
+print(('[dps-roxwoodracing] fuel: %s'):format(Fuel.Provider))
 
-function SetFullFuel(veh)
-  SetVehicleFuelLevel(veh, 100.0)
-  for _, setter in ipairs(activeSetters) do
-    setter(veh, 100.0)
+function Fuel.Set(veh, level)
+  if not veh or veh == 0 or not DoesEntityExist(veh) then return end
+  level = math.max(0.0, math.min(100.0, level + 0.0))
+  if Fuel.Provider == 'ox_fuel' then
+    Entity(veh).state:set('fuel', level, true)
+  elseif exportsByName[Fuel.Provider] then
+    pcall(exportsByName[Fuel.Provider], veh, level)
   end
-  -- ox_fuel commonly uses statebags instead of an export
-  if GetResourceState("ox_fuel") == "started" then
-    local ent = Entity(veh)
-    if ent and ent.state and ent.state.set then ent.state:set("fuel", 100.0, true) end
-  end
-  -- Server-authoritative sync (prevents external fuel scripts from reverting the value)
-  local netId = NetworkGetNetworkIdFromEntity(veh)
-  if netId and netId ~= 0 then
-    TriggerServerEvent('dps-roxwoodracing:server:setFuel', netId, 100.0)
-  end
+  pcall(SetVehicleFuelLevel, veh, level)
 end
 
--- Apply fuel from server request (native must be client-side)
+function Fuel.SetFull(veh) Fuel.Set(veh, 100.0) end
+
 RegisterNetEvent('dps-roxwoodracing:client:setFuel', function(netId, level)
-  if type(netId) ~= 'number' then return end
-  level = tonumber(level) or 0.0
-  if level < 0.0 then level = 0.0 end; if level > 100.0 then level = 100.0 end
-  local v = NetworkGetEntityFromNetworkId(netId)
-  if not v or v == 0 or not DoesEntityExist(v) then return end
-  -- Only the client with control can truly set it; others will no-op
-  SetFuelLevel(v, level)
+  Fuel.Set(NetworkGetEntityFromNetworkId(netId), level)
+end)
+RegisterNetEvent('dps-roxwoodracing:client:fillFuel', function(netId)
+  Fuel.SetFull(NetworkGetEntityFromNetworkId(netId))
 end)

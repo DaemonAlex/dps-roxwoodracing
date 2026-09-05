@@ -5,7 +5,7 @@
 --------------------------------------------------------------------------------
 -- 2) FUEL MODULE (moved to client/c_fuel.lua)
 --------------------------------------------------------------------------------
--- SetFullFuel(veh) is defined in client/c_fuel.lua
+-- Fuel.SetFull(veh) is defined in integrations/fuel.lua
 
 --------------------------------------------------------------------------------
 -- 4) RACE STATE
@@ -50,8 +50,8 @@ function ShowLobbyDisplay(name, members)
     lobbyNuiVisible = true
     if not lobbyHintShown then
         lobbyHintShown = true
-        if SpeedwayNotify then
-            SpeedwayNotify(Locale("player_joined_title"), Locale("notify_interact_full", (Config.InteractKeyLabel or 'F2')), "inform", 7000)
+        if Notify then
+            Notify(Locale("player_joined_title"), Locale("notify_interact_full", (Config.InteractKeyLabel or 'F2')), "inform", 7000)
         else
             print(("[dps-roxwoodracing] " .. Locale("hint_interact", (Config.InteractKeyLabel or 'F2'))))
         end
@@ -157,7 +157,7 @@ RegisterCommand('lobby', function()
     if lobbyNuiVisible and not inRace and not timeoutModalActive then
         ToggleLobbyInteract()
     else
-    SpeedwayNotify(Locale("speedway_title"), Locale("lobby_controls_only_visible"), "error", 3500)
+    Notify(Locale("speedway_title"), Locale("lobby_controls_only_visible"), "error", 3500)
     end
 end, false)
 -- Default keybind: Left Alt (LMENU). Players can remap via FiveM key bindings.
@@ -449,54 +449,13 @@ local function GetVehicleNoseWorldPoints(veh)
 end
 
 -- Attempt to grant keys for a vehicle across common key resources
--- GiveVehicleKeys(veh) is defined in client/c_keys.lua
+-- Keys.Give(veh, plate) is defined in integrations/keys.lua
 
 --------------------------------------------------------------------------------
--- 6) UNIVERSAL NOTIFY & ALERT
---------------------------------------------------------------------------------
-function SpeedwayNotify(title, description, ntype, duration)
-    local provider = Config.NotificationProvider or "ox_lib"
-    if provider == "okokNotify" then
-        exports['okokNotify']:Alert(title or "", description or "", duration or 5000, ntype or "info")
-    elseif provider == "ox_lib" then
-        lib.notify({ title = title or "", description = description or "", type = ntype or "inform", position = "topLeft", duration = duration or 5000 })
-    elseif provider == "rtx_notify" then
-        exports['rtx_notify']:SendNotification({ title = title or "", text = description or "", icon = ntype or "info", length = duration or 5000, position = "topLeft" })
-    else
-        print(("[dps-roxwoodracing][%s] %s: %s"):format(provider, title or "Notice", description or ""))
-    end
-end
-
--- Server-triggered notification: routes through SpeedwayNotify for provider compatibility
-RegisterNetEvent('dps-roxwoodracing:client:notify', function(title, description, ntype, duration)
-    SpeedwayNotify(title, description, ntype, duration)
-end)
-
-function SpeedwayAlert(header, content, duration)
-    local provider = Config.NotificationProvider or "ox_lib"
-    if provider == "okokNotify" or provider == "ox_lib" then
-        lib.alertDialog({ header = header or "", content = content or "", centered = true, duration = duration or 10000 })
-    elseif provider == "rtx_notify" then
-        exports['rtx_notify']:SendNotification({ title = header or "", text = content or "", icon = "info", length = duration or 10000 })
-    else
-        lib.notify({ title = header or "", description = content or "", type = "error", position = "topLeft", duration = duration or 5000 })
-    end
-end
-
+-- 6) notifications live in integrations/notify.lua (Notify)
 --------------------------------------------------------------------------------
 -- 7) COUNTDOWN UI
 --------------------------------------------------------------------------------
-function ShowCountdownText(text, duration)
-    local endTime = GetGameTimer() + duration
-    while GetGameTimer() < endTime do
-        SetTextFont(4); SetTextScale(1.5,1.5); SetTextCentre(true)
-        SetTextDropshadow(0,0,0,0,255)
-        BeginTextCommandDisplayText("STRING")
-        AddTextComponentSubstringPlayerName(text)
-        EndTextCommandDisplayText(0.5,0.4)
-        Wait(0)
-    end
-end
 
 --------------------------------------------------------------------------------
 -- 8) LOBBY PED & TARGET SETUP
@@ -511,69 +470,10 @@ CreateThread(function()
     SetEntityInvincible(ped, true)
     SetBlockingOfNonTemporaryEvents(ped, true)
 
-    -- Support ox_target, qb-target, or fallback to proximity key-press
-    local targetSystem = Config.TargetSystem or 'ox_target'
-    local function hasResource(name)
-        local st = GetResourceState(name)
-        return st == 'started' or st == 'starting'
-    end
-
-    if targetSystem == 'ox_target' and hasResource('ox_target') then
-        exports.ox_target:addLocalEntity(ped, {
-            {
-                name = 'speedway_create_lobby',
-                event = 'dps-roxwoodracing:client:createLobby',
-                icon = 'fa-solid fa-flag-checkered',
-                label = Locale("create_lobby"),
-                canInteract = function() return not hasLobby end,
-                distance = 2.5,
-            },
-            {
-                name = 'speedway_join_lobby',
-                event = 'dps-roxwoodracing:client:joinLobby',
-                icon = 'fa-solid fa-user-plus',
-                label = Locale("join_lobby"),
-                canInteract = function() return hasLobby and not currentLobby end,
-                distance = 2.5,
-            },
-        })
-    elseif targetSystem == 'qb-target' and hasResource('qb-target') then
-        exports['qb-target']:AddTargetEntity(ped, {
-            options = {
-                { event = 'dps-roxwoodracing:client:createLobby', icon = 'fa-solid fa-flag-checkered', label = Locale("create_lobby"), canInteract = function() return not hasLobby end },
-                { event = 'dps-roxwoodracing:client:joinLobby',   icon = 'fa-solid fa-user-plus',         label = Locale("join_lobby"),   canInteract = function() return hasLobby and not currentLobby end },
-            },
-            distance = 2.5
-        })
-    else
-        -- Fallback: proximity + key-press interaction (no target resource needed)
-        local interactKey = Config.InteractKey or 'E'
-        local interactLabel = Config.InteractKeyLabel or interactKey
-        local pedCoords = cfg.coords
-        CreateThread(function()
-            while DoesEntityExist(ped) do
-                local sleep = 1000
-                local playerCoords = GetEntityCoords(PlayerPedId())
-                local dist = #(playerCoords - vector3(pedCoords.x, pedCoords.y, pedCoords.z))
-                if dist < 3.0 then
-                    sleep = 0
-                    if not hasLobby then
-                        DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 1.0, ('[%s] %s'):format(interactLabel, Locale("create_lobby")))
-                        if IsControlJustPressed(0, 38) then -- E key
-                            TriggerEvent('dps-roxwoodracing:client:createLobby')
-                        end
-                    elseif hasLobby and not currentLobby then
-                        DrawText3D(pedCoords.x, pedCoords.y, pedCoords.z + 1.0, ('[%s] %s'):format(interactLabel, Locale("join_lobby")))
-                        if IsControlJustPressed(0, 38) then -- E key
-                            TriggerEvent('dps-roxwoodracing:client:joinLobby')
-                        end
-                    end
-                end
-                Wait(sleep)
-            end
-        end)
-    end
-
+    Target.AddPed(ped, {
+      { name = 'roxwood_create_lobby', event = 'dps-roxwoodracing:client:createLobby', icon = 'fa-solid fa-flag-checkered', label = Locale("create_lobby"), canInteract = function() return not hasLobby end, distance = 2.5 },
+      { name = 'roxwood_join_lobby',   event = 'dps-roxwoodracing:client:joinLobby',   icon = 'fa-solid fa-user-plus',       label = Locale("join_lobby"),   canInteract = function() return hasLobby and not currentLobby end, distance = 2.5 },
+    })
     local blip = AddBlipForCoord(cfg.coords.x, cfg.coords.y, cfg.coords.z)
     SetBlipSprite(blip, 315); SetBlipDisplay(blip, 4); SetBlipScale(blip, 0.8); SetBlipAsShortRange(blip, false)
     BeginTextCommandSetBlipName("STRING"); AddTextComponentString(Locale('blip_name')); EndTextCommandSetBlipName(blip)
@@ -639,7 +539,7 @@ RegisterNetEvent('dps-roxwoodracing:client:createLobby', function()
         print("[DEBUG] dps-roxwoodracing:client:createLobby event triggered")
     end
     if hasLobby then
-        SpeedwayNotify(Locale("lobby_exists"), "", "error")
+        Notify(Locale("lobby_exists"), "", "error")
         return
     end
     -- Build race class options from config
@@ -684,7 +584,7 @@ end)
 RegisterNetEvent('dps-roxwoodracing:client:joinLobby', function()
     local lobbies = lib.callback.await("dps-roxwoodracing:getLobbies", true)
     if not lobbies or #lobbies == 0 then
-        SpeedwayNotify(Locale("no_lobbies"), "", "error")
+        Notify(Locale("no_lobbies"), "", "error")
         return
     end
     local opts = {}
@@ -699,7 +599,7 @@ end)
 
 RegisterNetEvent('dps-roxwoodracing:client:startRace', function()
     if lobbyOwner ~= GetPlayerServerId(PlayerId()) then
-        SpeedwayNotify("", Locale("not_authorized_to_start_race"), "error")
+        Notify("", Locale("not_authorized_to_start_race"), "error")
         return
     end
     -- Hide lobby preview for the host immediately
@@ -712,7 +612,7 @@ RegisterNetEvent('dps-roxwoodracing:client:startRace', function()
         local pname = pid and GetPlayerName(pid) or ("ID"..sid)
         table.insert(names, pname)
     end
-    SpeedwayNotify(Locale("lobby_preview"), table.concat(names, "\n"), "inform", 10000)
+    Notify(Locale("lobby_preview"), table.concat(names, "\n"), "inform", 10000)
     -- No ox_lib context menu to close; lobby window is native
     TriggerServerEvent("dps-roxwoodracing:startRace", currentLobby)
 end)
@@ -799,7 +699,7 @@ speedwaySuppressAutoUntilAltUp = false
 
 RegisterNetEvent('dps-roxwoodracing:client:leaveLobby', function()
     if not hasLobby then
-        SpeedwayNotify(Locale("no_lobby_joined"), Locale("no_lobby_joined_desc"), "error")
+        Notify(Locale("no_lobby_joined"), Locale("no_lobby_joined_desc"), "error")
         return
     end
     TriggerServerEvent("dps-roxwoodracing:leaveLobby", currentLobby)
@@ -909,7 +809,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
         local deadline = GetGameTimer() + 15000
         while not NetworkDoesNetworkIdExist(data.netId) do
           if GetGameTimer() > deadline then
-            SpeedwayNotify("Speedway", "Vehicle failed to spawn. Please try again.", "error", 5000)
+            Notify("Speedway", "Vehicle failed to spawn. Please try again.", "error", 5000)
             inRace = false
             return
           end
@@ -918,7 +818,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
         local veh = NetworkGetEntityFromNetworkId(data.netId)
         while not DoesEntityExist(veh) do
           if GetGameTimer() > deadline then
-            SpeedwayNotify("Speedway", "Vehicle failed to spawn. Please try again.", "error", 5000)
+            Notify("Speedway", "Vehicle failed to spawn. Please try again.", "error", 5000)
             inRace = false
             return
           end
@@ -933,10 +833,10 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
     SetEntityAsMissionEntity(veh, true, true)
     FreezeEntityPosition(veh, true)
     -- Give keys as early as possible (before any engine state changes)
-    GiveVehicleKeys(veh)
+    Keys.Give(veh, data.plate)
 
     -- Apply fuel and full cosmetics BEFORE putting the player in to avoid visible pop
-    SetFullFuel(veh)
+    Fuel.SetFull(veh)
     if Speedway_ApplyAll then Speedway_ApplyAll(veh) end
     -- Engine ON before countdown so drivers can launch instantly at GO
     SetVehicleEngineOn(veh, true, true, false)
@@ -974,7 +874,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
         CreateThread(function()
             local untilTs = GetGameTimer() + 2500
             while GetGameTimer() < untilTs and DoesEntityExist(veh) do
-                if SetFullFuel then SetFullFuel(veh) end
+                Fuel.SetFull(veh)
                 Wait(200)
             end
         end)
@@ -1085,7 +985,7 @@ RegisterCommand('speedway_cleanup', function()
 end, false)
 
 RegisterNetEvent("dps-roxwoodracing:youFinished", function()
-    SpeedwayNotify("🏁 Speedway", Locale("you_finished"), "success", 5000)
+    Notify("🏁 Speedway", Locale("you_finished"), "success", 5000)
 end)
 
 --------------------------------------------------------------------------------
@@ -1115,15 +1015,15 @@ RegisterNetEvent("dps-roxwoodracing:finalRanking", function(data)
             local name = GetPlayerName(GetPlayerFromServerId(e.id)) or ("ID"..e.id)
             lines[#lines+1] = ("%d. %s — %ds"):format(i, name, math.floor(e.time/1000))
         end
-        SpeedwayNotify("", table.concat(lines, "\n"), "inform", 10000)
+        Notify("", table.concat(lines, "\n"), "inform", 10000)
         return
     end
 
     local totalTime = math.floor((data.totalTime or 0)/1000)
     if data.position == 1 then
-        SpeedwayNotify("🏆 Speedway", Locale("you_won", totalTime), "success", 5000)
+        Notify("🏆 Speedway", Locale("you_won", totalTime), "success", 5000)
     else
-        SpeedwayNotify("🏁 Speedway", Locale("you_placed", data.position, #results, totalTime), "inform", 5000)
+        Notify("🏁 Speedway", Locale("you_placed", data.position, #results, totalTime), "inform", 5000)
     end
     if data.lapTimes then
         local lapLines = { Locale("lap_summary") }
@@ -1131,7 +1031,7 @@ RegisterNetEvent("dps-roxwoodracing:finalRanking", function(data)
             lapLines[#lapLines+1] = Locale("lap_time", i, math.floor(t/1000))
         end
         lapLines[#lapLines+1] = Locale("best_lap", math.floor((data.bestLap or 0)/1000))
-        SpeedwayNotify(Locale("lap_summary"), table.concat(lapLines, "\n"), "info", 10000)
+        Notify(Locale("lap_summary"), table.concat(lapLines, "\n"), "info", 10000)
     end
 end)
 
@@ -1167,17 +1067,13 @@ end)
 --------------------------------------------------------------------------------
 -- 16) FUEL AUTO-FILL EVENT
 --------------------------------------------------------------------------------
-RegisterNetEvent("dps-roxwoodracing:client:fillFuel", function(netId)
-    local v = NetworkGetEntityFromNetworkId(netId)
-    if DoesEntityExist(v) then SetFullFuel(v) end
-end)
 
 -- Use globals so values set during prepareStart are reflected here too
 currentLap, totalLaps = currentLap or 1, totalLaps or 1
 
 RegisterNetEvent("dps-roxwoodracing:updateLap", function(cur, tot)
     currentLap, totalLaps = cur, tot
-    SpeedwayNotify("🏁 Speedway", ("Lap %s/%s"):format(cur, tot), "inform", 3000)
+    Notify("🏁 Speedway", ("Lap %s/%s"):format(cur, tot), "inform", 3000)
 end)
 
 RegisterNetEvent("dps-roxwoodracing:updatePosition", function(position, total)
@@ -1214,19 +1110,19 @@ end)
 --------------------------------------------------------------------------------
 RegisterNetEvent('dps-roxwoodracing:client:rewardNotify', function(data)
     if data.positionPayout and data.positionPayout > 0 then
-        SpeedwayNotify("Speedway", Locale("reward_cash", data.positionPayout, data.positionLabel or ""), "success", 5000)
+        Notify("Speedway", Locale("reward_cash", data.positionPayout, data.positionLabel or ""), "success", 5000)
     end
     if data.participation and data.participation > 0 then
-        SpeedwayNotify("Speedway", Locale("reward_participation", data.participation), "inform", 4000)
+        Notify("Speedway", Locale("reward_participation", data.participation), "inform", 4000)
     end
     if data.bestLapBonus and data.bestLapBonus > 0 then
-        SpeedwayNotify("Speedway", Locale("reward_best_lap", data.bestLapBonus), "success", 5000)
+        Notify("Speedway", Locale("reward_best_lap", data.bestLapBonus), "success", 5000)
     end
     if data.vehiclePrize then
-        SpeedwayNotify("Speedway", Locale("reward_vehicle", data.vehiclePrize), "success", 8000)
+        Notify("Speedway", Locale("reward_vehicle", data.vehiclePrize), "success", 8000)
     end
     if data.poolPayout and data.poolPayout > 0 then
-        SpeedwayNotify("Speedway", Locale("prize_pool_payout", data.poolPayout), "success", 5000)
+        Notify("Speedway", Locale("prize_pool_payout", data.poolPayout), "success", 5000)
     end
 end)
 
@@ -1235,11 +1131,11 @@ end)
 --------------------------------------------------------------------------------
 RegisterNetEvent('dps-roxwoodracing:client:statsNotify', function(data)
     if data.newRecord then
-        SpeedwayNotify("Speedway", Locale("stats_new_record", string.format("%.1f", data.newRecord / 1000)), "success", 6000)
+        Notify("Speedway", Locale("stats_new_record", string.format("%.1f", data.newRecord / 1000)), "success", 6000)
     end
     if data.wins and data.totalRaces then
         local bestStr = data.bestLap and string.format("%.1f", data.bestLap / 1000) or "N/A"
-        SpeedwayNotify("Speedway", Locale("stats_summary", data.wins, data.totalRaces, bestStr), "inform", 8000)
+        Notify("Speedway", Locale("stats_summary", data.wins, data.totalRaces, bestStr), "inform", 8000)
     end
 end)
 
@@ -1247,7 +1143,7 @@ end)
 RegisterCommand('racestats', function()
     local stats = lib.callback.await('dps-roxwoodracing:getPlayerStats', false)
     if not stats then
-        SpeedwayNotify("Speedway", "No stats found.", "error", 3000)
+        Notify("Speedway", "No stats found.", "error", 3000)
         return
     end
     local lines = { Locale("stats_command_header") }
@@ -1258,5 +1154,5 @@ RegisterCommand('racestats', function()
             lines[#lines+1] = ("%s Best: %.1fs"):format(track, ms / 1000)
         end
     end
-    SpeedwayNotify(Locale("stats_command_header"), table.concat(lines, "\n"), "inform", 12000)
+    Notify(Locale("stats_command_header"), table.concat(lines, "\n"), "inform", 12000)
 end, false)

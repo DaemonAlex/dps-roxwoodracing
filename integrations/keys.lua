@@ -1,96 +1,28 @@
--- client/c_keys.lua
--- Centralized vehicle-keys handoff so different key resources can be supported easily.
--- Exposes:
---   GiveVehicleKeys(veh)               -- attempts to grant keys for the passed vehicle
---   Speedway_RegisterKeyProvider(fn)   -- add a custom provider; fn(veh, plate) -> true if handled
+-- Vehicle keys. One provider, detected at boot; Keys.Give(veh, plate).
+Keys = {}
+local order = { 'wasabi_carlock', 'qs-vehiclekeys', 'Renewed-Vehiclekeys', 'qb-vehiclekeys' }
+Keys.Provider = 'none'
+for _, name in ipairs(order) do
+  if GetResourceState(name) == 'started' or GetResourceState(name) == 'starting' then Keys.Provider = name break end
+end
+print(('[dps-roxwoodracing] keys: %s'):format(Keys.Provider))
 
-local Providers = {}
-
--- Public: allow other scripts to register a provider at runtime
-function Speedway_RegisterKeyProvider(name, fn)
-    if type(fn) == 'function' then
-        Providers[#Providers+1] = { name = name or ('prov_'..#Providers+1), fn = fn }
-    end
+function Keys.Give(veh, plate)
+  local p = Keys.Provider
+  if p == 'wasabi_carlock' then
+    pcall(function() exports.wasabi_carlock:GiveKey(plate) end)
+  elseif p == 'qs-vehiclekeys' then
+    pcall(function() exports['qs-vehiclekeys']:GiveKeys(plate, nil, true) end)
+  elseif p == 'Renewed-Vehiclekeys' then
+    pcall(function() exports['Renewed-Vehiclekeys']:addKey(plate) end)
+  elseif p == 'qb-vehiclekeys' then
+    pcall(function() TriggerEvent('vehiclekeys:client:SetOwner', plate) end)
+  end
+  -- Always unlock as well; key scripts sometimes re-lock on spawn.
+  SetVehicleDoorsLocked(veh, 1)
 end
 
-local function safeHasResource(name)
-    if not GetResourceState then return false end
-    local st = GetResourceState(name)
-    return st == 'started' or st == 'starting'
-end
-
--- Built-in providers (common key scripts)
--- 1) qb-vehiclekeys (and forks under 'vehiclekeys') using plate
-Speedway_RegisterKeyProvider('qb-vehiclekeys', function(veh, plate)
-    local handled = false
-    if safeHasResource('qb-vehiclekeys') or safeHasResource('vehiclekeys') then
-        -- Events
-        handled = pcall(function() TriggerEvent('vehiclekeys:client:SetOwner', plate) end) or handled
-        handled = pcall(function() TriggerEvent('qb-vehiclekeys:client:SetOwner', plate) end) or handled
-        -- Exports (some forks)
-        if exports['qb-vehiclekeys'] then
-            handled = pcall(function() exports['qb-vehiclekeys']:SetOwner(plate) end) or handled
-            handled = pcall(function() exports['qb-vehiclekeys']:GiveKeys(plate) end) or handled
-        end
-    end
-    return handled
+RegisterNetEvent('dps-roxwoodracing:client:giveKeys', function(netId, plate)
+  local veh = NetworkGetEntityFromNetworkId(netId)
+  if veh and veh ~= 0 and DoesEntityExist(veh) then Keys.Give(veh, plate or GetVehicleNumberPlateText(veh)) end
 end)
-
--- 2) qs-vehiclekeys using entity
-Speedway_RegisterKeyProvider('qs-vehiclekeys', function(veh, plate)
-    if safeHasResource('qs-vehiclekeys') and exports['qs-vehiclekeys'] then
-        return pcall(function() exports['qs-vehiclekeys']:GiveKeys(veh) end)
-    end
-    return false
-end)
-
--- 3) wasabi_carlock (optional) – uses entity
-Speedway_RegisterKeyProvider('wasabi_carlock', function(veh, plate)
-    if safeHasResource('wasabi_carlock') and exports['wasabi_carlock'] then
-        return pcall(function() exports['wasabi_carlock']:GiveKey(veh) end)
-    end
-    return false
-end)
-
--- 4) renewed-vehiclekeys: similar to qb-vehiclekeys (plate)
-Speedway_RegisterKeyProvider('renewed-vehiclekeys', function(veh, plate)
-    if safeHasResource('renewed-vehiclekeys') then
-        return pcall(function() TriggerEvent('vehiclekeys:client:SetOwner', plate) end)
-    end
-    return false
-end)
-
--- Public: Attempt all providers in order
-function GiveVehicleKeys(veh)
-    if not veh or veh == 0 then return false end
-    local plate = (GetVehicleNumberPlateText(veh) or ''):gsub('%s+', '')
-    local ok = false
-    for _, prov in ipairs(Providers) do
-        local handled = false
-        local okcall, res = pcall(prov.fn, veh, plate)
-        handled = okcall and (res == true)
-        ok = ok or handled
-        -- Do not break; some servers prefer multiple scripts to receive keys
-    end
-    return ok
-end
-
--- Server-triggered key handoff: receives a netId instead of relying on
--- a single key protocol. Uses the multi-provider GiveVehicleKeys().
-RegisterNetEvent('dps-roxwoodracing:client:giveKeys', function(netId)
-    local veh = NetworkGetEntityFromNetworkId(netId)
-    if not veh or veh == 0 then
-        -- entity may not have arrived yet; wait briefly
-        local tries = 0
-        while (not veh or veh == 0) and tries < 20 do
-            Wait(100)
-            veh = NetworkGetEntityFromNetworkId(netId)
-            tries = tries + 1
-        end
-    end
-    if veh and veh ~= 0 then
-        GiveVehicleKeys(veh)
-    end
-end)
-
-return {}
