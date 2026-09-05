@@ -66,7 +66,7 @@ local idleStopFlag = false
 --- Gather top 9 best lap times from all players across all tracks.
 --- Returns { names = {string...}, times = {number...} } sorted by time ascending.
 local function GetTopBestTimes()
-    local rows = MySQL.query.await('SELECT citizenid, best_laps FROM speedway_stats WHERE best_laps IS NOT NULL AND best_laps != ?', { '{}' })
+    local rows = MySQL.query.await('SELECT citizenid, best_laps FROM dps_roxwoodracing_stats WHERE best_laps IS NOT NULL AND best_laps != ?', { '{}' })
     if not rows or #rows == 0 then return nil end
 
     local entries = {}
@@ -94,25 +94,12 @@ local function GetTopBestTimes()
         top[i] = entries[i]
     end
 
-    -- Build online player lookup: identifier -> server id
-    local onlinePlayers = Bridge.GetAllPlayersWithIdentifier()
-
-    -- Look up player names
+    -- Look up character names from the DB (cached per citizenid)
     local nameCache = {}
     local names, times = {}, {}
     for i, entry in ipairs(top) do
         if not nameCache[entry.citizenid] then
-            local displayName = entry.citizenid -- fallback
-            local onlinePid = onlinePlayers[entry.citizenid]
-            if onlinePid then
-                -- Player is online — get name from framework
-                displayName = Bridge.GetPlayerName(onlinePid) or displayName
-            else
-                -- Player is offline — query database
-                local dbName = Bridge.GetPlayerNameFromDB(entry.citizenid)
-                if dbName then displayName = dbName end
-            end
-            nameCache[entry.citizenid] = displayName
+            nameCache[entry.citizenid] = Bridge.GetPlayerNameFromDB(entry.citizenid) or entry.citizenid:sub(1, 8)
         end
         names[i] = nameCache[entry.citizenid]
         times[i] = entry.time
