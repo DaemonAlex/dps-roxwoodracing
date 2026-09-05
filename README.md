@@ -1,333 +1,88 @@
-# rox_speedway
+# dps-roxwoodracing
 
-Multiplayer race system for FiveM built around Roxwood Speedway. Lobby-based, supports race classes, rewards, persistent stats, ghosting, pit crews, and a physical LED leaderboard sign.
+Roxwood Raceway for Del Perro Sands. Lobby-based racing with two modes, pit crews, an in-world LED leaderboard, persistent stats, and a real business behind it: the `roxwoodracing` job, whose society account takes the entry fees and pays the purses.
 
-Originally forked from [max_rox_speedway by MaxSuperTech](https://github.com/MaxSuperTech/max_rox_speedway) - heavily rewritten since.
+Descended from [max_rox_speedway](https://github.com/MaxSuperTech/max_rox_speedway) (MaxSuperTech) via rox_speedway (DrCannabis / DaemonAlex). Version 3.0 is the DPS port; see `CHANGELOG.md`.
 
----
+## What it does
 
-## Getting Started
+- **Lobbies.** Walk up to the paddock ped, create or join. Host starts the countdown. Four layouts (Short, Drift, Speed, Long) with checkpoint ranking that stays accurate through curves. Concurrent races on different layouts.
+- **Spec mode.** The raceway spawns the cars. Any vehicle the server registers is on the menu, grouped by class, plus the old curated presets. The host picks a lobby-wide tune: Stock, Street, or Race. Cars are deleted after the race.
+- **Open mode.** Bring a car you own. The server checks the plate is yours and that it fits the class the host chose. You keep the car afterwards, damage and all.
+- **Pit crews.** NPC crews refuel and repair when you stop in a pit box.
+- **Ghosting, results screen, best-lap and most-improved badges, LED sign** as before.
+- **Money.** Entry fee goes into the `roxwoodracing` society account. The buy-in pool (60/30/10) and the podium purse (5000/3000/1500, show-up 500, fastest lap 1000) are paid out of that account. If the account cannot cover the purse, the race pays the pool only and says so. `purseSource = 'house'` mints the purse instead but still logs it.
+- **Staff.** Marshals end stuck races, clear props and switch the sign; Race Directors set fees and purse; the Owner has the boss menu and bank access. `/raceway` or the boss-menu item "Raceway Control".
 
-You'll need these already running on your server:
-- [ox_lib](https://github.com/overextended/ox_lib)
-- [qb-core](https://github.com/qbcore-framework/qb-core) or [qbx_core](https://github.com/Qbox-project/qbx_core) (or ESX - auto-detected)
-- [oxmysql](https://github.com/overextended/oxmysql)
-- [ox_target](https://github.com/overextended/ox_target) or [qb-target](https://github.com/qbcore-framework/qb-target) (set in config)
+## Requirements
 
-Drop the `rox_speedway` folder into your resources, add `ensure rox_speedway` to your `server.cfg`, and restart. The database table creates itself on first boot. Walk up to the NPC at the speedway and you're racing.
+ox_lib, oxmysql, and a framework (qbx_core first, qb-core, es_extended). Everything else is detected at boot and falls back:
 
-Defaults are sane - rewards on, entry fees off, stats tracking on. Tweak `config/config.lua` when you feel like it.
+| Need | Detected | Fallback |
+|---|---|---|
+| Society money | Renewed-Banking | qb-banking, then plain player cash |
+| Boss menu | qbx_management | qb-bossmenu event |
+| Prize car | jg-advancedgarages (`garage_id`) | stock `garage` column |
+| Keys | wasabi_carlock | qs-vehiclekeys, Renewed-Vehiclekeys, qb-vehiclekeys, unlock only |
+| Fuel | ox_fuel statebag | LegacyFuel, cdn-fuel, okokGasStation, qs-fuelstations, natives |
+| Target | ox_target | qb-target, proximity key |
+| Notify | ox_lib | okokNotify, console |
 
----
-
-## What It Does
-
-**Racing**
-- Create and join lobbies, host starts the countdown
-- 4 track layouts (Short, Drift, Speed, Long) with segment hints for accurate position tracking through curves
-- Live position HUD during races
-- Full lap timing with podium results
-- Pit crew NPCs that refuel and repair your car mid-race
-- 75+ curated vehicles across 7 race classes
-
-**Ghosting**
-Prevents the usual first-corner pile-up and lapped-player griefing. Everyone's ghosted at GO, then unghosted once all racers pass the first checkpoint (or after a 15-second timer). Players a full lap behind the leader get ghosted too so they can't block. Configurable or disable entirely.
-
-**Race Results Screen**
-Full results overlay after each race - positions, times, best laps, payouts, podium styling (gold/silver/bronze for top 3), and badges for fastest lap and most improved driver. Replaces the old notification toasts. Auto-dismisses after 20 seconds.
-
-**Race Classes**
-
-| Class | Examples |
-|-------|----------|
-| Open | All 75+ vehicles |
-| Super Cars | Krieger, Emerus, Deveste Eight, Thrax, Cyclone, Ignus |
-| Tuners / JDM | Calico GTF, Jester RR, ZR350, Sultan RS Classic, Futo GTX |
-| Muscle | Dominator GT, Gauntlet Hellfire, Buffalo STX |
-| Motorcycles | Hakuchou Drag, Bati 801RR, Shinobi, Reever |
-| Vans & Trucks | Youga Custom, Yosemite 1500, Sandking XL, Kamacho |
-| Rally | Omnis, GB200, Tropos Rallye, WRC i20, Yaris WRC |
-
-You can add your own - just drop a new entry in `Config.RaceClasses` with a label and vehicle list.
-
-**Rewards & Entry Fees**
-- 1st: $5,000 / 2nd: $3,000 / 3rd: $1,500 / participation: $500 / fastest lap: $1,000
-- Optional vehicle prize for 1st (saved to their garage)
-- Optional entry fee system - buy-in pool splits 60/30/10 to top 3
-- Both systems stack if you want
-
-**Persistent Stats**
-Career tracking in the database - wins, podiums, total races, lifetime earnings, best lap per track. Players check their stats with `/racestats`. Records trigger a "NEW RECORD" notification.
-
-**LED Leaderboard**
-Physical sign at the speedway. Shows live positions during races, top 9 all-time records when idle. Based on [glitchdetector's amir-leaderboard](https://github.com/glitchdetector/amir-leaderboard), bundled directly so there's no separate resource to install.
-
-**Localization**
-Ships with English, Spanish, French, German, and Russian. Add your own by dropping a new file in `locales/`.
-
----
-
-## Tracks
-
-| Track | Checkpoints | Notes |
-|-------|-------------|-------|
-| Short_Track | 3 | Quick inner oval, fastest laps |
-| Drift_Track | 3 | Extended route with wide sweeping turns |
-| Speed_Track | 4 | Outer oval for high-speed runs |
-| Long_Track | 5 | Full circuit combining all sections |
-
----
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `/racestats` | View your career stats |
-| `/lobby` | Toggle lobby interaction (backup for keybind) |
-| `/speedway_cleanup` | Force-clean track props and zones |
-| `/lb names` | Switch leaderboard to names mode |
-| `/lb toggle` | Switch leaderboard to toggle mode |
-
-Default lobby interact key is **F2** - players can rebind it in FiveM settings.
-
----
+Install steps for DPS (job entry, garage entry) are in `docs/install.md`.
 
 ## Configuration
 
-Everything lives in `config/config.lua`. Here's what you can change:
+| File | Holds |
+|---|---|
+| `config/config.lua` | timing, keybind, debug, leaderboard, ghosting, results UI |
+| `config/tracks.lua` | checkpoints, segment hints, props, grid, finish line, paddock ped |
+| `config/vehicles.lua` | spec presets, fallback list, `Config.OpenClasses`, `Config.Tune` |
+| `config/economy.lua` | `Config.Job`, `Config.Economy` (fees, purse, pool split, prize car) |
+| `config/pit.lua` | pit boxes, crew model, timings |
 
-### Rewards
+Tune presets are mod indices: Street = engine/brakes/gearbox 2, Race = max of each plus turbo. Add or change them in `Config.Tune`; the order shown in the menu is `Config.TuneOrder`.
 
-```lua
-Config.Rewards = {
-    enabled = true,
-    moneyType = 'cash',              -- 'cash' or 'bank'
-    payouts = {
-        [1] = 5000,
-        [2] = 3000,
-        [3] = 1500,
-    },
-    participationReward = 500,
-    bestLapBonus = 1000,
-    vehiclePrize = nil,              -- model name like 'krieger' to award a car
-    vehiclePrizeGarage = 'pillboxgarage',
-}
-```
+## Commands
 
-### Entry Fees
+| Command | Who | Does |
+|---|---|---|
+| `/racestats` | anyone | career stats |
+| `/lobby` | anyone | toggle the lobby panel focus (F2 by default) |
+| `/raceway` | Marshal and up | Raceway Control menu |
 
-```lua
-Config.EntryFee = {
-    enabled = false,                 -- flip to true for buy-ins
-    amount = 1000,
-    moneyType = 'cash',
-    poolSplit = { [1] = 60, [2] = 30, [3] = 10 },
-}
-```
-
-### Stats
-
-```lua
-Config.Stats = {
-    enabled = true,
-    showAfterRace = true,
-}
-```
-
-The `speedway_stats` table is created automatically - no SQL to run.
-
-### Ghosting
-
-```lua
-Config.Ghosting = {
-    enabled = true,
-    startGhosted = true,
-    unghostOnCheckpoint = 1,         -- 0 = timer only
-    unghostTimerSeconds = 15,
-    lappedGhosting = true,
-    ghostAlpha = 150,                -- 0-255
-}
-```
-
-### Results UI
-
-```lua
-Config.ResultsUI = {
-    enabled = true,
-    displayDurationMs = 20000,
-    showBestLap = true,
-    showMostImproved = true,
-}
-```
-
-### Race Settings
-
-```lua
-Config.RaceStartDelay = 10
-Config.ProgressTickMs = 150          -- 75-200ms recommended
-Config.DistanceUseNoseCorners = true
-```
-
-### Targeting & Notifications
-
-```lua
-Config.TargetSystem = 'ox_target'    -- or 'qb-target'
-Config.NotificationProvider = "ox_lib"  -- "okokNotify" or "rtx_notify"
-```
-
-### Pit Stop Timing
-
-```lua
-Config.PitStopTiming = {
-    crewWalkSpeed    = 2.0,
-    refuelSteps      = 15,
-    refuelStepMs     = 200,
-    repairDuration   = 3000,
-    approachTimeout  = 8000,
-    returnTimeout    = 15000,
-}
-```
-
-### LED Leaderboard
-
-```lua
-Config.Leaderboard = {
-    enabled = true,
-    idleDisplay = true,
-    updateIntervalMs = 1000,
-    toggleIntervalMs = 2000,
-    viewMode = "toggle",             -- or "names"
-    timeMode = "total",              -- or "lap"
-}
-```
-
-### Debug
-
-```lua
-Config.DebugPrints = false
-Config.ZoneDebug = false
-Config.RankingInvert = false
-```
-
----
-
-## Adding Your Own Stuff
-
-### Custom Tracks
-
-```lua
-Config.Checkpoints = {
-    My_Track = {
-        vector3(x1, y1, z1),
-        vector3(x2, y2, z2),
-        vector3(x3, y3, z3),
-    },
-}
-
--- Optional but helps with ranking accuracy on curves
-Config.SegmentHints = {
-    My_Track = {
-        [0] = { vector3(x, y, z) },
-        [1] = { vector3(x, y, z) },
-    },
-}
-```
-
-### Custom Race Classes
-
-```lua
-Config.RaceClasses.Offroad = {
-    label = "Off-Road",
-    description = "Dirt and mud only",
-    vehicles = { "kamacho", "riata", "sandking", "bf400", "manchez3" },
-}
-```
-
-Vehicle names need to exist in `Config.RaceVehicles` or they won't show up in the selection menu.
-
----
-
-## File Structure
+## Layout
 
 ```
-rox_speedway/
-  fxmanifest.lua
-  config/
-    config.lua
-  client/
-    c_main.lua              -- lobby UI, race HUD, vehicle selection, rewards display
-    c_fuel.lua              -- fuel system detection
-    c_keys.lua              -- vehicle key integration
-    c_customs.lua           -- cosmetics & paint
-    c_function.lua          -- shared utilities
-    c_pit.lua               -- pit stop logic & crew animations
-    nui/
-      timeout.html          -- lobby overlay, timeout modal, race results UI
-  server/
-    s_main.lua              -- lobbies, race logic, rewards, stats, entry fees
-    sv_bridge.lua           -- framework bridge (QBCore/QBX/ESX auto-detect)
-  leaderboard/
-    cl_leaderboard.lua      -- DUI setup for the in-world LED sign
-    sv_leaderboard.lua      -- display state & idle best-times loop
-    speedway.html           -- LED display renderer
-    LCDMB___.TTF            -- LCD font
-    ads/                    -- ad images for the sign
-  stream/                   -- 3D model, textures, and map placement for the LED sign
-  locales/
-    en.lua, es.lua, fr.lua, de.lua, ru.lua
+bridge/         framework detection + player/money/job API
+integrations/   one file per vendor: notify, target, keys, fuel, banking, garages, bossmenu
+shared/         pure modules (validate, plates, tune, payouts, ranking, locale) — unit-tested
+config/         split by topic
+client/         main, hud, ghost, pit, customs, leaderboard
+server/         lobbies, race, rewards, stats, staff, leaderboard
+html/           lobby + HUD + results page, LED renderer
+stream/         LED sign model
+tests/          lua5.4 runner and stubs; tools/check.sh runs syntax + tests
 ```
-
----
 
 ## Database
 
-Auto-created on startup:
+`dps_roxwoodracing_stats` (auto-created; `speedway_stats` is renamed on first boot if present) and `dps_roxwoodracing_settings` (staff overrides). `best_laps` is JSON keyed by track name, times in milliseconds.
 
-```sql
-CREATE TABLE IF NOT EXISTS speedway_stats (
-    citizenid VARCHAR(50) NOT NULL,
-    total_races INT DEFAULT 0,
-    wins INT DEFAULT 0,
-    top3 INT DEFAULT 0,
-    total_earnings INT DEFAULT 0,
-    best_laps JSON DEFAULT '{}',
-    last_race TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (citizenid)
-);
+## Tests
+
+```
+./tools/check.sh
 ```
 
-`best_laps` is a JSON object keyed by track name: `{"Short_Track": 45200, "Drift_Track": 62100}` (times in milliseconds).
-
----
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for the full history. Recent highlights:
-
-- **v2.4.2** - Multiple concurrent races on different tracks; RP character names in lobby/scoreboard/results; full translations for v2.4.1 errors; faster end-of-race DB saves
-- **v2.4.1** - Hotfix: lobby creation no longer fails silently when player display name contains special characters
-- **v2.4** - Motorsport UI restyle, custom font (Barlow Condensed), tighter design language
-- **v2.3** - Ghosting system, race results overlay, expanded results payload
-- **v2.2** - Server-side input validation, anti-cheat hardening, memory optimizations
-- **v2.1** - Bundled LED leaderboard, idle best-times display
-- **v2.0** - Race classes, rewards, entry fees, persistent stats, 75+ vehicles
-
----
-
-## Dependencies
-
-**Required:** [ox_lib](https://github.com/overextended/ox_lib) / [oxmysql](https://github.com/overextended/oxmysql) / QBCore, Qbox, or ESX (auto-detected)
-
-**Target (one of):** [ox_target](https://github.com/overextended/ox_target) or [qb-target](https://github.com/qbcore-framework/qb-target)
-
-**Bundled:** [AMIR Leaderboard](https://github.com/glitchdetector/amir-leaderboard) by glitchdetector
+Syntax-checks every Lua file with `luac5.4 -p`, then runs `tests/run.lua`. Needs Lua 5.4 on the machine.
 
 ## Credits
 
-- Original script: [MaxSuperTech](https://github.com/MaxSuperTech/max_rox_speedway)
-- LED leaderboard: [glitchdetector](https://github.com/glitchdetector/amir-leaderboard)
-- Maintained by DrCannabis / DaemonAlex
+- Original script: MaxSuperTech (max_rox_speedway)
+- rox_speedway: DrCannabis / DaemonAlex
+- LED leaderboard: glitchdetector (amir-leaderboard)
+- DPS port: DPS Development
 
 ## License
 
-See [LICENSE](LICENSE).
+See `LICENSE`.

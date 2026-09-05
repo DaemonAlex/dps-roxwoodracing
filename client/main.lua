@@ -11,6 +11,8 @@
 -- 4) RACE STATE
 --------------------------------------------------------------------------------
 local hasLobby             = false
+local inRace               = false
+local timeoutModalActive   = false
 --------------------------------------------------------------------------------
 -- NATIVE LOBBY WAITING LIST DISPLAY
 local lobbyDisplayActive = false
@@ -187,7 +189,6 @@ end)
 local currentProps         = {}
 local currentZones         = {}
 local racerCheckpointIndex = 0
-local inRace               = false
 raceMode                   = 'spec'
 local myPosition           = 0
 local totalRacers          = 0
@@ -544,7 +545,6 @@ end)
 
 -- Vehicle selection countdown overlay
 local selectCountdownActive = false
-local timeoutModalActive = false
 
 RegisterNetEvent("dps-roxwoodracing:vehicleSelectCountdown", function(remaining)
     selectCountdownActive = remaining and remaining > 0

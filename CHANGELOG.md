@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.0.0 — 2026-09-05 — dps-roxwoodracing
+- Renamed to dps-roxwoodracing; event prefix `dps-roxwoodracing:`; [dps] layout (bridge/, integrations/, config split by topic, shared/ pure modules with lua5.4 tests).
+- New job `roxwoodracing` (Marshal, Pit Crew, Race Director, Owner); entry fees, pool and purse flow through the Renewed-Banking society account; `Config.Economy.purseSource = 'society' | 'house'`.
+- Lobby modes: Spec (any registered car, grouped by class, Stock/Street/Race tune) and Open (bring a car you own, class-gated, car kept after the race).
+- Autosensed integrations: qbx_core, Renewed-Banking, qbx_management, jg-advancedgarages, wasabi_carlock, ox_fuel, ox_target, ox_lib.
+- No scan loops: NUI HUD, lib.zones pit boxes, lib.points markers, idle leaderboard pushed once and on new records.
+- Staff: boss-menu "Raceway Control" and `/raceway`; fee/purse overrides persisted in `dps_roxwoodracing_settings`.
+- Stats table renamed to `dps_roxwoodracing_stats` (auto-migrated) with spec/open win counters.
+- Removed: de/es/fr/ru locales, qb-input remnants, dead camera/feed hooks, `/lb` and `/speedway_cleanup` (folded into Raceway Control).
+
 All notable changes to this project will be documented in this file.
 
 ## v2.4.2 — Multi-Lobby + Polish (2026-05-09)
