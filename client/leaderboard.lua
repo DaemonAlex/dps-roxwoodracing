@@ -14,21 +14,21 @@ local function EnsureModel(model)
 end
 
 CreateThread(function()
-    print("[Speedway] Loading leaderboard sign...")
+    print("[dps-roxwoodracing] Loading leaderboard sign...")
     EnsureModel("amir_speedway_led")
-    DuiObject = CreateDui("nui://rox_speedway/leaderboard/speedway.html", 512, 512)
+    DuiObject = CreateDui("nui://dps-roxwoodracing/html/led.html", 512, 512)
     local timeout = GetNetworkTime()
     while not IsDuiAvailable(DuiObject) and GetNetworkTime() - timeout < 6000 do
         Wait(0)
     end
-    print("[Speedway] Leaderboard sign loaded!")
+    print("[dps-roxwoodracing] Leaderboard sign loaded!")
     local txd = CreateRuntimeTxd('amir_speedway_sign')
     local dui = GetDuiHandle(DuiObject)
     CreateRuntimeTextureFromDuiHandle(txd, "amir_speedway_led", dui)
     AddReplaceTexture('amir_speedway_led', 'amir_speedway_led', 'amir_speedway_sign', "amir_speedway_led")
     SetModelAsNoLongerNeeded("amir_speedway_led")
 
-    RegisterNetEvent("speedway:setPlayerTimes", function(title, players)
+    RegisterNetEvent("dps-roxwoodracing:setPlayerTimes", function(title, players)
         SendDuiMessage(DuiObject, json.encode({
             type = "playerTimes",
             title = title,
@@ -36,7 +36,7 @@ CreateThread(function()
         }))
     end)
 
-    RegisterNetEvent("speedway:setPlayerNames", function(title, players)
+    RegisterNetEvent("dps-roxwoodracing:setPlayerNames", function(title, players)
         SendDuiMessage(DuiObject, json.encode({
             type = "playerNames",
             title = title,
@@ -44,7 +44,7 @@ CreateThread(function()
         }))
     end)
 
-    RegisterNetEvent("speedway:setText", function(title, players)
+    RegisterNetEvent("dps-roxwoodracing:setText", function(title, players)
         SendDuiMessage(DuiObject, json.encode({
             type = "playerText",
             title = title,
@@ -52,7 +52,7 @@ CreateThread(function()
         }))
     end)
 
-    RegisterNetEvent("speedway:setAdUrls", function(urls)
+    RegisterNetEvent("dps-roxwoodracing:setAdUrls", function(urls)
         SendDuiMessage(DuiObject, json.encode({
             type = "ads",
             url = urls,
@@ -60,7 +60,7 @@ CreateThread(function()
     end)
 
     -- Request current display state from the server so late-joiners see the board
-    TriggerServerEvent("speedway:requestData")
+    TriggerServerEvent("dps-roxwoodracing:requestData")
 end)
 
 -- Clean up DUI on resource stop to prevent orphaned objects on restart

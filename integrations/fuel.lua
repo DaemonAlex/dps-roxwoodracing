@@ -30,7 +30,7 @@ CreateThread(function()
             end)
           end
         end)
-        print(("[ROX-Speedway] Fuel integration: %s (%s) detected"):format(apiName, fname))
+        print(("[dps-roxwoodracing] Fuel integration: %s (%s) detected"):format(apiName, fname))
         return true
       end
     end
@@ -47,7 +47,7 @@ CreateThread(function()
           -- LegacyFuel canonical export
           pcall(function() exports['LegacyFuel']:SetFuel(veh, lvl) end)
         end)
-        print("[ROX-Speedway] Fuel integration: LegacyFuel (SetFuel) detected [explicit]")
+        print("[dps-roxwoodracing] Fuel integration: LegacyFuel (SetFuel) detected [explicit]")
       end
       -- Explicit handling for qs-fuelstations
       if api.name == 'qs-fuelstations' then
@@ -56,13 +56,13 @@ CreateThread(function()
           -- qs-fuelstations uses SetFuel export
           pcall(function() exports['qs-fuelstations']:SetFuel(veh, lvl) end)
         end)
-        print("[ROX-Speedway] Fuel integration: qs-fuelstations (SetFuel) detected [explicit]")
+        print("[dps-roxwoodracing] Fuel integration: qs-fuelstations (SetFuel) detected [explicit]")
       end
       if not ok then
         ok = tryRegister(api.name)
       end
       if not ok and api.name == "lc_fuel" then
-        print("[ROX-Speedway] lc_fuel detected but no known SetFuel export; will use natives + server sync")
+        print("[dps-roxwoodracing] lc_fuel detected but no known SetFuel export; will use natives + server sync")
       end
     end
   end
@@ -93,12 +93,12 @@ function SetFullFuel(veh)
   -- Server-authoritative sync (prevents external fuel scripts from reverting the value)
   local netId = NetworkGetNetworkIdFromEntity(veh)
   if netId and netId ~= 0 then
-    TriggerServerEvent('speedway:server:setFuel', netId, 100.0)
+    TriggerServerEvent('dps-roxwoodracing:server:setFuel', netId, 100.0)
   end
 end
 
 -- Apply fuel from server request (native must be client-side)
-RegisterNetEvent('rox_speedway:client:setFuel', function(netId, level)
+RegisterNetEvent('dps-roxwoodracing:client:setFuel', function(netId, level)
   if type(netId) ~= 'number' then return end
   level = tonumber(level) or 0.0
   if level < 0.0 then level = 0.0 end; if level > 100.0 then level = 100.0 end

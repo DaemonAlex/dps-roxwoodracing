@@ -77,7 +77,7 @@ end
 
 -- Server-triggered key handoff: receives a netId instead of relying on
 -- a single key protocol. Uses the multi-provider GiveVehicleKeys().
-RegisterNetEvent('speedway:client:giveKeys', function(netId)
+RegisterNetEvent('dps-roxwoodracing:client:giveKeys', function(netId)
     local veh = NetworkGetEntityFromNetworkId(netId)
     if not veh or veh == 0 then
         -- entity may not have arrived yet; wait briefly

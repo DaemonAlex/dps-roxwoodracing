@@ -2,7 +2,7 @@
 -- Adapted from glitchdetector's amir-leaderboard (sv_speedway.lua)
 -- Server-side display state management + idle best-times display
 
-local Config = Config or require("config.config")
+-- Config is a shared global
 
 if not Config.Leaderboard or not Config.Leaderboard.enabled then return end
 
@@ -21,7 +21,7 @@ local function showPlayerTimes(title, times)
     CurrentDisplayType = "setPlayerTimes"
     CurrentDisplayLines = times
     CurrentDisplayTitle = title
-    TriggerClientEvent("speedway:setPlayerTimes", -1, title, times)
+    TriggerClientEvent("dps-roxwoodracing:setPlayerTimes", -1, title, times)
 end
 AddEventHandler("amir-leaderboard:setPlayerTimes", showPlayerTimes)
 
@@ -29,7 +29,7 @@ local function showPlayerNames(title, names)
     CurrentDisplayType = "setPlayerNames"
     CurrentDisplayLines = names
     CurrentDisplayTitle = title
-    TriggerClientEvent("speedway:setPlayerNames", -1, title, names)
+    TriggerClientEvent("dps-roxwoodracing:setPlayerNames", -1, title, names)
 end
 AddEventHandler("amir-leaderboard:setPlayerNames", showPlayerNames)
 
@@ -37,24 +37,24 @@ local function showText(title, lines)
     CurrentDisplayType = "setText"
     CurrentDisplayLines = lines
     CurrentDisplayTitle = title
-    TriggerClientEvent("speedway:setText", -1, title, lines)
+    TriggerClientEvent("dps-roxwoodracing:setText", -1, title, lines)
 end
 AddEventHandler("amir-leaderboard:setText", showText)
 
 local function setAdUrls(ad1, ad2, ad3)
     CurrentDisplayAdUrls = { ad1, ad2, ad3 }
-    TriggerClientEvent("speedway:setAdUrls", -1, CurrentDisplayAdUrls)
+    TriggerClientEvent("dps-roxwoodracing:setAdUrls", -1, CurrentDisplayAdUrls)
 end
 AddEventHandler("amir-leaderboard:setAdUrls", setAdUrls)
 
 --------------------------------------------------------------------------------
 -- Late-join data push
 --------------------------------------------------------------------------------
-RegisterServerEvent("speedway:requestData")
-AddEventHandler("speedway:requestData", function()
+RegisterServerEvent("dps-roxwoodracing:requestData")
+AddEventHandler("dps-roxwoodracing:requestData", function()
     local src = source
-    TriggerClientEvent("speedway:" .. CurrentDisplayType, src, CurrentDisplayTitle, CurrentDisplayLines)
-    TriggerClientEvent("speedway:setAdUrls", src, CurrentDisplayAdUrls)
+    TriggerClientEvent("dps-roxwoodracing:" .. CurrentDisplayType, src, CurrentDisplayTitle, CurrentDisplayLines)
+    TriggerClientEvent("dps-roxwoodracing:setAdUrls", src, CurrentDisplayAdUrls)
 end)
 
 --------------------------------------------------------------------------------

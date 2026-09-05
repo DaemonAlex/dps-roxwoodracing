@@ -1,6 +1,6 @@
 -- s_main.lua
 
-local Config    = require("config.config")
+-- Config is a shared global
 -- Bridge (loaded before this file via fxmanifest) provides: Bridge.Framework,
 -- Bridge.GetPlayerIdentifier(), Bridge.AddMoney(), etc.
 local localeTable = require("locales." .. Config.Locale)
@@ -16,7 +16,7 @@ end
 -- server-side notification helper (routes through client SpeedwayNotify)
 --------------------------------------------------------------------------------
 local function ServerNotify(target, title, description, ntype, duration)
-  TriggerClientEvent('speedway:client:notify', target, title, description, ntype, duration)
+  TriggerClientEvent('dps-roxwoodracing:client:notify', target, title, description, ntype, duration)
 end
 
 --------------------------------------------------------------------------------
@@ -89,7 +89,7 @@ if Config.Stats and Config.Stats.enabled then
         PRIMARY KEY (citizenid)
       )
     ]])
-    print('[Speedway] speedway_stats table ready.')
+    print('[dps-roxwoodracing] speedway_stats table ready.')
   end)
 end
 
@@ -162,7 +162,7 @@ local function GrantRewards(lob, results, lobbyName)
     end
 
     -- Notify client
-    TriggerClientEvent('speedway:client:rewardNotify', pid, {
+    TriggerClientEvent('dps-roxwoodracing:client:rewardNotify', pid, {
       positionPayout = positionPayout,
       positionLabel = positionLabel,
       participation = participation,
@@ -189,7 +189,7 @@ local function DistributePrizePool(lob, results)
     if pct and pct > 0 then
       local payout = math.floor(pool * pct / 100)
       if payout > 0 and Bridge.AddMoney(entry.id, Config.EntryFee.moneyType or 'cash', payout, 'speedway-prizepool') then
-        TriggerClientEvent('speedway:client:rewardNotify', entry.id, { poolPayout = payout })
+        TriggerClientEvent('dps-roxwoodracing:client:rewardNotify', entry.id, { poolPayout = payout })
       end
     end
   end
@@ -244,7 +244,7 @@ local function SaveRaceStats(pid, position, track, bestLap, earnings)
 
   -- Notify client without a read-back query: we have all the fields locally.
   if Config.Stats.showAfterRace then
-    TriggerClientEvent('speedway:client:statsNotify', pid, {
+    TriggerClientEvent('dps-roxwoodracing:client:statsNotify', pid, {
       wins        = prevWins  + isWin,
       totalRaces  = prevRaces + 1,
       bestLap     = bestLaps[track],
@@ -256,7 +256,7 @@ end
 --------------------------------------------------------------------------------
 -- Stats callback for /racestats command
 --------------------------------------------------------------------------------
-lib.callback.register('speedway:getPlayerStats', function(source)
+lib.callback.register('dps-roxwoodracing:getPlayerStats', function(source)
   local cid = GetCitizenId(source)
   if not cid then return nil end
   local row = MySQL.single.await('SELECT * FROM speedway_stats WHERE citizenid = ?', { cid })
@@ -371,7 +371,7 @@ local function findLobbyByPlayer(pid)
   return nil, nil
 end
 
--- Helper: build the payload sent to clients in speedway:updateLobbyInfo.
+-- Helper: build the payload sent to clients in dps-roxwoodracing:updateLobbyInfo.
 -- Resolves names via the framework bridge so RP servers see character names
 -- (e.g. "John Smith") instead of Steam display names.
 local function buildLobbyInfo(lobbyName, lob)
@@ -399,7 +399,7 @@ RegisterCommand('lb', function(src, args)
   local mode = args and args[1] and args[1]:lower() or nil
   if mode ~= 'names' and mode ~= 'toggle' then
     if src == 0 then
-      print('[Speedway] Usage: lb <names|toggle> [LobbyName]')
+      print('[dps-roxwoodracing] Usage: lb <names|toggle> [LobbyName]')
     else
       ServerNotify(src, 'Speedway', 'Usage: /lb names | toggle', 'inform')
     end
@@ -417,7 +417,7 @@ RegisterCommand('lb', function(src, args)
 
   if not lob then
     if src == 0 then
-      print('[Speedway] No active lobby found for command')
+      print('[dps-roxwoodracing] No active lobby found for command')
     else
       ServerNotify(src, 'Speedway', 'No active lobby found', 'error')
     end
@@ -431,7 +431,7 @@ RegisterCommand('lb', function(src, args)
   amirState[lobbyName].showNames = true -- always start on names view
 
   local msg = ('AMIR view mode set to %s for lobby %s'):format(mode, tostring(lobbyName))
-  if src == 0 then print('[Speedway] ' .. msg) else ServerNotify(src, locale('speedway_title'), msg, 'success') end
+  if src == 0 then print('[dps-roxwoodracing] ' .. msg) else ServerNotify(src, locale('speedway_title'), msg, 'success') end
 end, false)
 
 math.randomseed(GetGameTimer())
@@ -439,7 +439,7 @@ math.randomseed(GetGameTimer())
 --------------------------------------------------------------------------------
 -- callbacks for client queries
 --------------------------------------------------------------------------------
-lib.callback.register("speedway:getLobbies", function(source)
+lib.callback.register("dps-roxwoodracing:getLobbies", function(source)
   local result = {}
   for name, lobby in pairs(lobbies) do
     table.insert(result, {
@@ -450,7 +450,7 @@ lib.callback.register("speedway:getLobbies", function(source)
   return result
 end)
 
-lib.callback.register("speedway:getLobbyPlayers", function(source, lobbyName)
+lib.callback.register("dps-roxwoodracing:getLobbyPlayers", function(source, lobbyName)
   local lobby = lobbies[lobbyName]
   return lobby and lobby.players or {}
 end)
@@ -458,7 +458,7 @@ end)
 --------------------------------------------------------------------------------
 -- CREATE LOBBY
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:createLobby", function(lobbyName, trackType, lapCount, raceClass)
+RegisterNetEvent("dps-roxwoodracing:createLobby", function(lobbyName, trackType, lapCount, raceClass)
   local src = source
   if RateLimit(src, "createLobby", 2000) then return end
 
@@ -483,7 +483,7 @@ RegisterNetEvent("speedway:createLobby", function(lobbyName, trackType, lapCount
   if type(raceClass) ~= 'string' or not VALID_CLASSES[raceClass] then raceClass = 'All' end
 
   if Config.DebugPrints then
-    print(string.format("[DEBUG] speedway:createLobby received: lobbyName=%s, trackType=%s, lapCount=%s, raceClass=%s, src=%s", lobbyName, trackType, lapCount, tostring(raceClass), src))
+    print(string.format("[DEBUG] dps-roxwoodracing:createLobby received: lobbyName=%s, trackType=%s, lapCount=%s, raceClass=%s, src=%s", lobbyName, trackType, lapCount, tostring(raceClass), src))
   end
 
   -- Reject if a lobby on the same track is already active.
@@ -525,15 +525,15 @@ RegisterNetEvent("speedway:createLobby", function(lobbyName, trackType, lapCount
 
   -- tell the creator
   ServerNotify(src, 'Speedway', locale("lobby_created", lobbyName), 'success')
-  TriggerClientEvent('speedway:updateLobbyInfo', src, buildLobbyInfo(lobbyName, lobbies[lobbyName]))
-  TriggerClientEvent('speedway:setLobbyState', -1, next(lobbies) ~= nil)
+  TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', src, buildLobbyInfo(lobbyName, lobbies[lobbyName]))
+  TriggerClientEvent('dps-roxwoodracing:setLobbyState', -1, next(lobbies) ~= nil)
   if Config.DebugPrints then print("[DEBUG] Lobby info sent to client and lobby state updated.") end
 end)
 
 --------------------------------------------------------------------------------
 -- JOIN LOBBY
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:joinLobby", function(lobbyName)
+RegisterNetEvent("dps-roxwoodracing:joinLobby", function(lobbyName)
   local src   = source
   if RateLimit(src, "joinLobby", 1000) then return end
 
@@ -566,21 +566,21 @@ RegisterNetEvent("speedway:joinLobby", function(lobbyName)
     -- BROADCAST who joined
     local playerName = Bridge.GetPlayerName(src)
     for _, id in ipairs(lobby.players) do
-      TriggerClientEvent("speedway:client:playerJoined", id, playerName)
+      TriggerClientEvent("dps-roxwoodracing:client:playerJoined", id, playerName)
     end
   end
 
   -- update everyone's lobby info
   local info = buildLobbyInfo(lobbyName, lobby)
   for _, id in ipairs(lobby.players) do
-    TriggerClientEvent("speedway:updateLobbyInfo", id, info)
+    TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", id, info)
   end
 end)
 
 --------------------------------------------------------------------------------
 -- CHECKPOINT PASSED (improves ranking during a lap)
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:checkpointPassed", function(lobbyName, idx)
+RegisterNetEvent("dps-roxwoodracing:checkpointPassed", function(lobbyName, idx)
   local src = source
   if RateLimit(src, "checkpointPassed", 200) then return end
 
@@ -607,7 +607,7 @@ RegisterNetEvent("speedway:checkpointPassed", function(lobbyName, idx)
     if allPast then
       lob.ghostActive = false
       for _, pid in ipairs(lob.players) do
-        TriggerClientEvent("speedway:client:unghost", pid)
+        TriggerClientEvent("dps-roxwoodracing:client:unghost", pid)
       end
     end
   end
@@ -616,7 +616,7 @@ end)
 --------------------------------------------------------------------------------
 -- LEAVE LOBBY
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:leaveLobby", function()
+RegisterNetEvent("dps-roxwoodracing:leaveLobby", function()
   local src = source
   if RateLimit(src, "leaveLobby", 1000) then return end
 
@@ -639,7 +639,7 @@ RegisterNetEvent("speedway:leaveLobby", function()
               RefundEntryFee(player)
             end
             ServerNotify(player, 'Speedway', locale("lobby_closed_by_owner", name), 'warning')
-            TriggerClientEvent("speedway:updateLobbyInfo", player, nil)
+            TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", player, nil)
           end
           amirState[name] = nil
           lobbies[name] = nil
@@ -655,20 +655,20 @@ RegisterNetEvent("speedway:leaveLobby", function()
               end
             end
             if Config.Leaderboard and Config.Leaderboard.enabled and not primaryLobby then
-              exports['rox_speedway']:ShowIdleLeaderboard()
+              exports['dps-roxwoodracing']:ShowIdleLeaderboard()
             end
           end
         else
           -- member left → update remaining
           local info = buildLobbyInfo(name, lobby)
           for _, player in ipairs(lobby.players) do
-            TriggerClientEvent("speedway:updateLobbyInfo", player, info)
+            TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", player, info)
           end
         end
 
         -- clear leaver’s UI
-        TriggerClientEvent("speedway:updateLobbyInfo", src, nil)
-        TriggerClientEvent("speedway:setLobbyState", -1, next(lobbies) ~= nil)
+        TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", src, nil)
+        TriggerClientEvent("dps-roxwoodracing:setLobbyState", -1, next(lobbies) ~= nil)
         return
       end
     end
@@ -685,7 +685,7 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
 
   local usedPlates = {}
   local spawnedNetIds = {}
-  TriggerClientEvent('rox_speedway:cam:broadcastOn', -1)
+  TriggerClientEvent('dps-roxwoodracing:cam:broadcastOn', -1)
 
   -- Record starting grid order for "Most Improved" calculation
   lob.gridOrder = {}
@@ -704,9 +704,9 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
       local plate = makePlateFromPlayer(pid, usedPlates)
       SetVehicleNumberPlateText(veh, plate)
       SetVehicleDoorsLocked(veh, 1)
-      TriggerClientEvent("speedway:client:fillFuel", pid, netId)
-      TriggerClientEvent("speedway:client:giveKeys", pid, netId)
-      TriggerClientEvent("speedway:prepareStart", pid, {
+      TriggerClientEvent("dps-roxwoodracing:client:fillFuel", pid, netId)
+      TriggerClientEvent("dps-roxwoodracing:client:giveKeys", pid, netId)
+      TriggerClientEvent("dps-roxwoodracing:prepareStart", pid, {
         track = lob.track,
         laps  = lob.laps,
         netId = netId,
@@ -717,7 +717,7 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
   end
 
   -- Broadcast all race vehicle netIds to all clients (clients ignore if not inRace)
-  TriggerClientEvent("speedway:raceVehicles", -1, spawnedNetIds)
+  TriggerClientEvent("dps-roxwoodracing:raceVehicles", -1, spawnedNetIds)
 
   -- Start-of-race ghosting
   if Config.Ghosting.enabled and Config.Ghosting.startGhosted then
@@ -729,7 +729,7 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
       if lob.ghostActive then
         lob.ghostActive = false
         for _, pid in ipairs(lob.players) do
-          TriggerClientEvent("speedway:client:unghost", pid)
+          TriggerClientEvent("dps-roxwoodracing:client:unghost", pid)
         end
       end
     end)
@@ -746,7 +746,7 @@ end
 --------------------------------------------------------------------------------
 -- START RACE & VEHICLE SELECTION
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:startRace", function(lobbyName)
+RegisterNetEvent("dps-roxwoodracing:startRace", function(lobbyName)
   local src = source
   if RateLimit(src, "startRace", 3000) then return end
 
@@ -784,7 +784,7 @@ RegisterNetEvent("speedway:startRace", function(lobbyName)
 
   if Config.Leaderboard and Config.Leaderboard.enabled and isPrimary then
     -- Stop idle best-times display before switching to live race mode
-    exports['rox_speedway']:StopIdleLeaderboard()
+    exports['dps-roxwoodracing']:StopIdleLeaderboard()
 
     -- reset per-lobby AMIR state
     local vm = (amirState[lobbyName] and amirState[lobbyName].vm) or (Config.Leaderboard.viewMode or "toggle")
@@ -811,7 +811,7 @@ RegisterNetEvent("speedway:startRace", function(lobbyName)
   pendingChoices[lobbyName] = { total = #lob.players, received = 0, selected = {} }
   -- Immediately hide lobby UI for all members
   for _, pid in ipairs(lob.players) do
-    TriggerClientEvent("speedway:hideLobbyWindow", pid)
+    TriggerClientEvent("dps-roxwoodracing:hideLobbyWindow", pid)
   end
   -- Start a 30s vehicle selection countdown visible to players
   local deadline = GetGameTimer() + 30000
@@ -820,7 +820,7 @@ RegisterNetEvent("speedway:startRace", function(lobbyName)
       local now = GetGameTimer()
       local remaining = math.max(0, math.floor((deadline - now) / 1000))
       for _, pid in ipairs(lob.players) do
-        TriggerClientEvent("speedway:vehicleSelectCountdown", pid, remaining)
+        TriggerClientEvent("dps-roxwoodracing:vehicleSelectCountdown", pid, remaining)
       end
       if pendingChoices[lobbyName].received >= pendingChoices[lobbyName].total then
         -- everyone selected; stop countdown
@@ -842,7 +842,7 @@ RegisterNetEvent("speedway:startRace", function(lobbyName)
         local pid = lob.players[i]
         if not data.selected[pid] then
           ServerNotify(pid, 'Speedway', locale("vehicle_select_timeout"), 'warning')
-          TriggerClientEvent("speedway:kickedFromLobby", pid, lobbyName, "timeout")
+          TriggerClientEvent("dps-roxwoodracing:kickedFromLobby", pid, lobbyName, "timeout")
           table.remove(lob.players, i)
         else
           table.insert(keep, pid)
@@ -861,21 +861,21 @@ RegisterNetEvent("speedway:startRace", function(lobbyName)
       pendingChoices[lobbyName] = nil
       lob.isStarted = false
       -- Ensure broadcast turns off if it was turned on earlier for this lobby
-      TriggerClientEvent('rox_speedway:cam:broadcastOff', -1)
+      TriggerClientEvent('dps-roxwoodracing:cam:broadcastOff', -1)
       for _, pid in ipairs(lob.players) do
         ServerNotify(pid, 'Speedway', locale("race_cancelled"), 'error')
       end
     end
   end)
   for _, pid in ipairs(lob.players) do
-    TriggerClientEvent("speedway:chooseVehicle", pid, lobbyName, lob.raceClass)
+    TriggerClientEvent("dps-roxwoodracing:chooseVehicle", pid, lobbyName, lob.raceClass)
   end
 end)
 
 --------------------------------------------------------------------------------
 -- VEHICLE SELECTION RESPONSE
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:selectedVehicle", function(lobbyName, model)
+RegisterNetEvent("dps-roxwoodracing:selectedVehicle", function(lobbyName, model)
   local src  = source
   if RateLimit(src, "selectedVehicle", 1000) then return end
 
@@ -911,7 +911,7 @@ end)
 --------------------------------------------------------------------------------
 -- LIVE PROGRESS UPDATES
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:updateProgress", function(lobbyName, dist)
+RegisterNetEvent("dps-roxwoodracing:updateProgress", function(lobbyName, dist)
   local src = source
   local lob = lobbies[lobbyName]
   if not lob or not lob.isStarted then return end
@@ -952,9 +952,9 @@ RegisterNetEvent("speedway:updateProgress", function(lobbyName, dist)
       lob.lastLeader = lob.lastLeader or -1
       if leaderId ~= lob.lastLeader then
         lob.lastLeader = leaderId
-        TriggerClientEvent('speedway:leaderChanged', -1, lobbyName, leaderId)
+        TriggerClientEvent('dps-roxwoodracing:leaderChanged', -1, lobbyName, leaderId)
         -- Inform feed module so it can request screenshots from the leader's client
-        TriggerEvent('rox_speedway:feed:setLeader', lobbyName, leaderId)
+        TriggerEvent('dps-roxwoodracing:feed:setLeader', lobbyName, leaderId)
       end
     end
   end
@@ -976,7 +976,7 @@ RegisterNetEvent("speedway:updateProgress", function(lobbyName, dist)
 
   for rank, e in ipairs(board) do
     local displayRank = (Config.RankingInvert and ((#board - rank) + 1)) or rank
-    TriggerClientEvent("speedway:updatePosition", e.id, displayRank, #board)
+    TriggerClientEvent("dps-roxwoodracing:updatePosition", e.id, displayRank, #board)
   end
 
   -- Lapped-player ghosting: ghost players a full lap behind the leader
@@ -988,10 +988,10 @@ RegisterNetEvent("speedway:updateProgress", function(lobbyName, dist)
       if isLapped and not wasGhosted then
         lob.lappedGhost = lob.lappedGhost or {}
         lob.lappedGhost[entry.id] = true
-        TriggerClientEvent("speedway:client:setGhosted", entry.id, true)
+        TriggerClientEvent("dps-roxwoodracing:client:setGhosted", entry.id, true)
       elseif not isLapped and wasGhosted then
         lob.lappedGhost[entry.id] = nil
-        TriggerClientEvent("speedway:client:setGhosted", entry.id, false)
+        TriggerClientEvent("dps-roxwoodracing:client:setGhosted", entry.id, false)
       end
     end
   end
@@ -1098,7 +1098,7 @@ end)
 --------------------------------------------------------------------------------
 -- LAP PASSED, LEADERBOARD UPDATE & RACE END
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:lapPassed", function(lobbyName)
+RegisterNetEvent("dps-roxwoodracing:lapPassed", function(lobbyName)
   local src = source
   if RateLimit(src, "lapPassed", 500) then return end
 
@@ -1123,7 +1123,7 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
   -- notify client of the current lap to display: completed+1, clamped to total
   local displayLap = curLap + 1
   if displayLap > lob.laps then displayLap = lob.laps end
-  TriggerClientEvent("speedway:updateLap", src, displayLap, lob.laps)
+  TriggerClientEvent("dps-roxwoodracing:updateLap", src, displayLap, lob.laps)
 
   -- reset per-lap progress counters so sorting is fair at the new lap start
   lob.checkpointProgress[src] = 0
@@ -1137,9 +1137,9 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
       lob.finished[src] = true
 
       -- warp them back, fade in/out
-      TriggerClientEvent("speedway:client:finishTeleport", src, Config.outCoords)
+      TriggerClientEvent("dps-roxwoodracing:client:finishTeleport", src, Config.outCoords)
       -- important “You finished!” toast
-      TriggerClientEvent("speedway:youFinished", src)
+      TriggerClientEvent("dps-roxwoodracing:youFinished", src)
 
       -- push their personal result
       local totalT, best = 0, math.huge
@@ -1148,7 +1148,7 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
       end
       if best == math.huge then best = 0 end
 
-      TriggerClientEvent("speedway:finalRanking", src, {
+      TriggerClientEvent("dps-roxwoodracing:finalRanking", src, {
         position  = table_count(lob.finished),
         totalTime = totalT,
         lapTimes  = lob.lapTimes[src],
@@ -1222,13 +1222,13 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
 
       -- Broadcast expanded results to all race participants
       for _, pid in ipairs(lob.players) do
-        TriggerClientEvent("speedway:finalRanking", pid, {
+        TriggerClientEvent("dps-roxwoodracing:finalRanking", pid, {
           allResults = results,
           bestLapPlayer = bestLapPlayer,
           mostImprovedPlayer = mostImprovedId,
           track = lob.track,
         })
-        TriggerClientEvent("speedway:client:destroyprops", pid)
+        TriggerClientEvent("dps-roxwoodracing:client:destroyprops", pid)
       end
 
       -- Grant rewards (cash payouts, best lap bonus, vehicle prizes)
@@ -1249,13 +1249,13 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
       end
 
       -- Race fully concluded: switch jumbotron back to IDLE for everyone
-      TriggerClientEvent('rox_speedway:cam:broadcastOff', -1)
+      TriggerClientEvent('dps-roxwoodracing:cam:broadcastOff', -1)
       -- Reset leader tracking for this lobby
       lob.lastLeader = -1
 
       amirState[lobbyName] = nil
       lobbies[lobbyName] = nil
-      TriggerClientEvent("speedway:setLobbyState", -1, next(lobbies) ~= nil)
+      TriggerClientEvent("dps-roxwoodracing:setLobbyState", -1, next(lobbies) ~= nil)
 
       -- If this was the primary lobby, promote the next active lobby to drive
       -- the physical AMIR LED scoreboard. If none is running, resume the idle
@@ -1272,7 +1272,7 @@ RegisterNetEvent("speedway:lapPassed", function(lobbyName)
       end
 
       if Config.Leaderboard and Config.Leaderboard.enabled and wasPrimary and not primaryLobby then
-        exports['rox_speedway']:ShowIdleLeaderboard()
+        exports['dps-roxwoodracing']:ShowIdleLeaderboard()
       end
     end
   end
@@ -1281,11 +1281,11 @@ end)
 --------------------------------------------------------------------------------
 -- FINISH TELEPORT, FUEL, ETC.
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:finishTeleport", function(coords)
-  TriggerClientEvent("speedway:client:finishTeleport", source, coords)
+RegisterNetEvent("dps-roxwoodracing:finishTeleport", function(coords)
+  TriggerClientEvent("dps-roxwoodracing:client:finishTeleport", source, coords)
 end)
 
-RegisterNetEvent("speedway:client:fillFuel", function(netId)
+RegisterNetEvent("dps-roxwoodracing:client:fillFuel", function(netId)
   local v = NetworkGetEntityFromNetworkId(netId)
   if not v or v == 0 or not DoesEntityExist(v) then return end
   -- Server-safe: only use ox_fuel statebag here; most exports are client-only
@@ -1294,13 +1294,13 @@ RegisterNetEvent("speedway:client:fillFuel", function(netId)
     if st and st.set then st:set("fuel", 100.0, true) end
   end
   -- Ask clients to apply native fuel locally (driver will usually own the entity)
-  TriggerClientEvent('rox_speedway:client:setFuel', -1, netId, 100.0)
+  TriggerClientEvent('dps-roxwoodracing:client:setFuel', -1, netId, 100.0)
 end)
 
 --------------------------------------------------------------------------------
 -- SERVER-AUTHORITATIVE FUEL SYNC (called from client after pit stop)
 --------------------------------------------------------------------------------
-RegisterNetEvent("speedway:server:setFuel", function(netId, level)
+RegisterNetEvent("dps-roxwoodracing:server:setFuel", function(netId, level)
   local src = source -- reserved if we later want to restrict
   if type(netId) ~= 'number' or type(level) ~= 'number' then return end
   if level < 0 then level = 0 end; if level > 100 then level = 100 end
@@ -1317,7 +1317,7 @@ RegisterNetEvent("speedway:server:setFuel", function(netId, level)
   end
 
   if Config.DebugPrints then
-    print(("[Speedway] Server fuel sync: netId=%s -> %.1f"):format(tostring(netId), level))
+    print(("[dps-roxwoodracing] Server fuel sync: netId=%s -> %.1f"):format(tostring(netId), level))
   end
 
   -- Reassert on clients too to overcome any late ticks from external scripts
@@ -1326,7 +1326,7 @@ RegisterNetEvent("speedway:server:setFuel", function(netId, level)
     for _, waitMs in ipairs(tries) do
       Wait(waitMs)
       -- Reassert on clients; external scripts may tick and revert
-      TriggerClientEvent('rox_speedway:client:setFuel', -1, netId, level + 0.0)
+      TriggerClientEvent('dps-roxwoodracing:client:setFuel', -1, netId, level + 0.0)
       if DoesEntityExist(v) and GetResourceState("ox_fuel") == "started" then
         local st = Entity(v).state
         if st and st.set then st:set("fuel", level + 0.0, true) end
@@ -1342,6 +1342,6 @@ if Config.Leaderboard and Config.Leaderboard.enabled then
   CreateThread(function()
     -- Wait for sv_leaderboard.lua exports to be registered and DB to be ready
     Wait(3000)
-    exports['rox_speedway']:ShowIdleLeaderboard()
+    exports['dps-roxwoodracing']:ShowIdleLeaderboard()
   end)
 end

@@ -4,7 +4,7 @@
 
 Bridge = {}
 
-local Config = Config or require("config.config")
+-- Config is a shared global
 
 --------------------------------------------------------------------------------
 -- Framework detection

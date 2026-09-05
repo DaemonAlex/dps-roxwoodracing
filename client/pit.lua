@@ -1,8 +1,8 @@
 -- client/c_pit.lua
 
-if Config.DebugPrints then print("[ROX-Speedway] c_pit.lua loaded") end
+if Config.DebugPrints then print("[dps-roxwoodracing] c_pit.lua loaded") end
 
-local Config = require("config.config")
+-- Config is a shared global
 
 -- will hold all our ped references
 local pitZones = {}
@@ -14,29 +14,29 @@ local pitBlips = {}
 CreateThread(function()
     Wait(100)
 
-    if Config.DebugPrints then print(("[ROX-Speedway] Config.PitCrewZones has %d entries"):format(#Config.PitCrewZones)) end
+    if Config.DebugPrints then print(("[dps-roxwoodracing] Config.PitCrewZones has %d entries"):format(#Config.PitCrewZones)) end
 
     local modelHash = GetHashKey(Config.PitCrewModel)
     RequestModel(modelHash)
     local deadline = GetGameTimer() + 10000
     while not HasModelLoaded(modelHash) and GetGameTimer() < deadline do Wait(0) end
     if not HasModelLoaded(modelHash) then
-        print("[ROX-Speedway] ERROR: Failed to load ped model '"..tostring(Config.PitCrewModel).."', attempting fallback model")
+        print("[dps-roxwoodracing] ERROR: Failed to load ped model '"..tostring(Config.PitCrewModel).."', attempting fallback model")
         local fallback = GetHashKey('s_m_y_construct_01')
         RequestModel(fallback)
         local deadline2 = GetGameTimer() + 8000
         while not HasModelLoaded(fallback) and GetGameTimer() < deadline2 do Wait(0) end
         if HasModelLoaded(fallback) then
             modelHash = fallback
-            if Config.DebugPrints then print("[ROX-Speedway] Loaded fallback ped model s_m_y_construct_01") end
+            if Config.DebugPrints then print("[dps-roxwoodracing] Loaded fallback ped model s_m_y_construct_01") end
         else
-            print("[ROX-Speedway] ERROR: Could not load fallback ped model either; aborting pit crew spawn")
+            print("[dps-roxwoodracing] ERROR: Could not load fallback ped model either; aborting pit crew spawn")
             return
         end
     end
 
     for idx, zone in ipairs(Config.PitCrewZones) do
-        if Config.DebugPrints then print(("[ROX-Speedway] Spawning pit crew for zone %d at %s"):format(idx, tostring(zone.coords))) end
+        if Config.DebugPrints then print(("[dps-roxwoodracing] Spawning pit crew for zone %d at %s"):format(idx, tostring(zone.coords))) end
     pitZones[idx] = { idle = {}, crew = {}, crewIdle = {}, crewHome = {}, spawnHeading = 0.0 }
         local data = pitZones[idx]
 
@@ -131,7 +131,7 @@ local inPit = false
 local pitCooldownUntil = 0  -- GetGameTimer timestamp: block re-entry until this time
 CreateThread(function()
     while #pitZones < #Config.PitCrewZones do Wait(0) end
-    if Config.DebugPrints then print("[ROX-Speedway] Pit detection thread starting") end
+    if Config.DebugPrints then print("[dps-roxwoodracing] Pit detection thread starting") end
 
     local fuelBones = { "door_fuel", "petrolcap", "petroltank" }
     local canModel = GetHashKey("prop_jerrycan_01a")
@@ -157,7 +157,7 @@ CreateThread(function()
 
         if not inPit then
             if dist < Config.PitCrewZones[idx].radius and speed < 0.5 and GetGameTimer() > pitCooldownUntil then
-                if Config.DebugPrints then print(("[ROX-Speedway] Vehicle entered pit zone %d at speed %.2f"):format(idx, speed)) end
+                if Config.DebugPrints then print(("[dps-roxwoodracing] Vehicle entered pit zone %d at speed %.2f"):format(idx, speed)) end
                 inPit = true
 
                 local zoneData   = pitZones[idx]
@@ -241,7 +241,7 @@ CreateThread(function()
                 end
 
                 -- DEBUG: where they’re going
-                if Config.DebugPrints then print("[ROX-Speedway] REFUELER moving to →", fuelPos) end
+                if Config.DebugPrints then print("[dps-roxwoodracing] REFUELER moving to →", fuelPos) end
 
                 -- prepare peds for movement: unfreeze, allow tasks, keep tasks
                 local function prep(p)
@@ -276,7 +276,7 @@ CreateThread(function()
                 TaskGoStraightToCoord(hoodPed,   frontApproach.x, frontApproach.y, frontApproach.z,  crewSpeed, -1, GetEntityHeading(veh), 0.5)
 
                 if Config.DebugPrints then
-                    print(string.format("[ROX-Speedway] Move orders → refuel:(%.2f,%.2f,%.2f) hood:(%.2f,%.2f,%.2f) tire:(%.2f,%.2f,%.2f)",
+                    print(string.format("[dps-roxwoodracing] Move orders → refuel:(%.2f,%.2f,%.2f) hood:(%.2f,%.2f,%.2f) tire:(%.2f,%.2f,%.2f)",
                         rfx,rfy,rfz2, frontPos.x,frontPos.y,frontPos.z, sidePos.x,sidePos.y,sidePos.z))
                 end
 
@@ -411,7 +411,7 @@ CreateThread(function()
                 if readBack < 99.0 then
                     if SetFullFuel then SetFullFuel(veh) else SetVehicleFuelLevel(veh, 100.0) end
                     local nid = NetworkGetNetworkIdFromEntity(veh)
-                    if nid and nid ~= 0 then TriggerServerEvent('speedway:server:setFuel', nid, 100.0) end
+                    if nid and nid ~= 0 then TriggerServerEvent('dps-roxwoodracing:server:setFuel', nid, 100.0) end
                 end
                 -- short client-side watchdog specifically for LegacyFuel to prevent late cache restores
                 CreateThread(function()
@@ -521,7 +521,7 @@ CreateThread(function()
                     if lvl < 99.0 then
                         if SetFullFuel then SetFullFuel(veh) else SetVehicleFuelLevel(veh, 100.0) end
                         local nid = NetworkGetNetworkIdFromEntity(veh)
-                        if nid and nid ~= 0 then TriggerServerEvent('speedway:server:setFuel', nid, 100.0) end
+                        if nid and nid ~= 0 then TriggerServerEvent('dps-roxwoodracing:server:setFuel', nid, 100.0) end
                     end
                 end)
                 AddTextEntry("PIT_RETURN", "Return to Race")
@@ -533,7 +533,7 @@ CreateThread(function()
             -- EXIT PIT
             local dist2 = #(GetEntityCoords(veh) - Config.PitCrewZones[idx].coords)
             if dist2 > Config.PitCrewZones[idx].radius then
-                if Config.DebugPrints then print("[ROX-Speedway] Exiting pit zone") end
+                if Config.DebugPrints then print("[dps-roxwoodracing] Exiting pit zone") end
                 FreezeEntityPosition(veh, false)
                 inPit = false
                 pitCooldownUntil = GetGameTimer() + 10000  -- 10s cooldown before next pit
