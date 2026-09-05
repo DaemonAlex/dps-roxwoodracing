@@ -36,8 +36,22 @@ function Lobbies.SpecCatalogue()
       end
     end
   else
-    print('[dps-roxwoodracing] WARNING: no vehicle registry; spec menu uses Config.SpecFallbackVehicles')
-    for _, v in ipairs(Config.SpecFallbackVehicles or {}) do classes.All.vehicles[#classes.All.vehicles+1] = { model = v.model, label = v.label } end
+    print('[dps-roxwoodracing] WARNING: no vehicle registry; spec menu uses Config.SpecFallbackVehicles only')
+  end
+  -- Base-game models are not in the addon registry but always exist client-side: merge the
+  -- curated vanilla list under its own group so presets (Super, Tuner, ...) can resolve.
+  do
+    local known = {}
+    for _, v in ipairs(classes.All.vehicles) do known[v.model:lower()] = true end
+    local vanilla = {}
+    for _, v in ipairs(Config.SpecFallbackVehicles or {}) do
+      if not known[v.model:lower()] then
+        known[v.model:lower()] = true
+        vanilla[#vanilla+1] = { model = v.model, label = v.label }
+        classes.All.vehicles[#classes.All.vehicles+1] = { model = v.model, label = v.label }
+      end
+    end
+    if #vanilla > 0 then classes.Vanilla = { label = 'Vanilla (base game)', vehicles = vanilla }; order[#order+1] = 'Vanilla' end
   end
   -- Named presets from config (only models the registry knows, or all when no registry)
   local known = {}
@@ -47,7 +61,7 @@ function Lobbies.SpecCatalogue()
       local list = {}
       for _, m in ipairs(preset.vehicles) do
         local v = known[m:lower()]
-        if v then list[#list+1] = v elseif not reg then list[#list+1] = { model = m, label = m } end
+        if v then list[#list+1] = v end
       end
       if #list > 0 then
         local k = 'Preset' .. key

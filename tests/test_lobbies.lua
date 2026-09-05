@@ -15,17 +15,26 @@ end
 TEST('SpecCatalogue groups registry vehicles by category and skips emergency/service', function()
   load()
   local cat = Lobbies.SpecCatalogue()
-  TRUTHY(cat.classes.All); EQ(#cat.classes.All.vehicles, 2)
+  TRUTHY(cat.classes.All); EQ(#cat.classes.All.vehicles, 2, 'sultan3 is in both registry and fallback: not duplicated')
   EQ(cat.classes.Super.vehicles[1].model, 'krieger')
   TRUTHY(Config.SpecClassKeys.All); TRUTHY(Config.SpecClassKeys.Sports); TRUTHY(Config.SpecClassKeys.Super); TRUTHY(Config.SpecClassKeys.PresetSuper)
   TRUTHY(Lobbies.IsModelAllowed('All', 'sultan3')); TRUTHY(Lobbies.IsModelAllowed('Super', 'krieger')); FALSY(Lobbies.IsModelAllowed('Super', 'sultan3'))
   FALSY(Lobbies.IsModelAllowed('All', 'ambulance'))
 end)
 
-TEST('SpecCatalogue falls back to config list without a registry', function()
+TEST('SpecCatalogue falls back to the vanilla list without a registry', function()
   load(); STUB.exports = {}; Lobbies._catalogue = nil
   local cat = Lobbies.SpecCatalogue()
-  EQ(#cat.classes.All.vehicles, 1); EQ(cat.classes.All.vehicles[1].model, 'sultan3')
+  EQ(#cat.classes.All.vehicles, 1); EQ(cat.classes.All.vehicles[1].model, 'sultan3'); TRUTHY(cat.classes.Vanilla)
+end)
+
+TEST('vanilla models missing from the registry join the catalogue and presets resolve', function()
+  load(); Lobbies._catalogue = nil
+  Config.SpecFallbackVehicles = { { model = 'sultan3', label = 'Sultan RS Classic' }, { model = 'krieger', label = 'Krieger' }, { model = 'zr350', label = 'ZR350' } }
+  Config.SpecPresets = { Tuner = { label = 'Tuners', vehicles = { 'zr350' } } }
+  local cat = Lobbies.SpecCatalogue()
+  EQ(#cat.classes.All.vehicles, 3); EQ(#cat.classes.Vanilla.vehicles, 1); EQ(cat.classes.Vanilla.vehicles[1].model, 'zr350')
+  TRUTHY(cat.classes.PresetTuner); EQ(cat.classes.PresetTuner.vehicles[1].model, 'zr350')
 end)
 
 TEST('VerifyOwnedVehicle checks the plate against the citizenid', function()
