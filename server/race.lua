@@ -37,7 +37,7 @@ local VALID_CLASSES = {}
 for k in pairs(Config.RaceClasses) do VALID_CLASSES[k] = true end
 
 local VALID_MODELS = {}
-for _, v in ipairs(Config.RaceVehicles) do VALID_MODELS[v.model:lower()] = true end
+for _, v in ipairs(Config.SpecFallbackVehicles) do VALID_MODELS[v.model:lower()] = true end
 
 --------------------------------------------------------------------------------
 -- Per-player event rate limiter (simple timestamp bucket)
@@ -65,226 +65,6 @@ CreateThread(function()
 end)
 
 --------------------------------------------------------------------------------
--- Database: auto-create stats table on resource start
---------------------------------------------------------------------------------
-if Config.Stats and Config.Stats.enabled then
-  CreateThread(function()
-    MySQL.query.await([[
-      CREATE TABLE IF NOT EXISTS speedway_stats (
-        citizenid VARCHAR(50) NOT NULL,
-        total_races INT DEFAULT 0,
-        wins INT DEFAULT 0,
-        top3 INT DEFAULT 0,
-        total_earnings INT DEFAULT 0,
-        best_laps JSON DEFAULT '{}',
-        last_race TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (citizenid)
-      )
-    ]])
-    print('[dps-roxwoodracing] speedway_stats table ready.')
-  end)
-end
-
---------------------------------------------------------------------------------
--- Helper: get citizenid from server id
---------------------------------------------------------------------------------
-local function GetCitizenId(pid)
-  return Bridge.GetPlayerIdentifier(pid)
-end
-
---------------------------------------------------------------------------------
--- Rewards: grant money and prizes at race end
---------------------------------------------------------------------------------
-local function GrantRewards(lob, results, lobbyName)
-  if not Config.Rewards or not Config.Rewards.enabled then return end
-  if not Bridge.Framework then return end
-
-  -- Find best lap across all players
-  local globalBestLap = math.huge
-  local bestLapPlayer = nil
-  for _, pid in ipairs(lob.players) do
-    for _, t in ipairs(lob.lapTimes[pid] or {}) do
-      if t < globalBestLap then
-        globalBestLap = t
-        bestLapPlayer = pid
-      end
-    end
-  end
-
-  for pos, entry in ipairs(results) do
-    local pid = entry.id
-    -- Skip players who disconnected before payout (bridge returns false if offline)
-    if not Bridge.GetPlayerIdentifier(pid) then goto continueReward end
-
-    local totalPayout = 0
-    local positionPayout = Config.Rewards.payouts[pos] or 0
-    local positionLabel = tostring(pos)
-    if pos == 1 then positionLabel = "1st"
-    elseif pos == 2 then positionLabel = "2nd"
-    elseif pos == 3 then positionLabel = "3rd"
-    else positionLabel = pos .. "th" end
-
-    -- Position payout
-    if positionPayout > 0 then
-      Bridge.AddMoney(pid, Config.Rewards.moneyType, positionPayout, 'speedway-race')
-      totalPayout = totalPayout + positionPayout
-    end
-
-    -- Participation reward
-    local participation = Config.Rewards.participationReward or 0
-    if participation > 0 then
-      Bridge.AddMoney(pid, Config.Rewards.moneyType, participation, 'speedway-participation')
-      totalPayout = totalPayout + participation
-    end
-
-    -- Best lap bonus
-    local bestLapBonus = 0
-    if pid == bestLapPlayer and Config.Rewards.bestLapBonus and Config.Rewards.bestLapBonus > 0 then
-      bestLapBonus = Config.Rewards.bestLapBonus
-      Bridge.AddMoney(pid, Config.Rewards.moneyType, bestLapBonus, 'speedway-bestlap')
-      totalPayout = totalPayout + bestLapBonus
-    end
-
-    -- Vehicle prize for 1st place
-    local vehiclePrize = nil
-    if pos == 1 and Config.Rewards.vehiclePrize then
-      vehiclePrize = Config.Rewards.vehiclePrize
-      local plate = 'PRIZE' .. math.random(100, 999)
-      Bridge.InsertVehicle(pid, vehiclePrize, plate, Config.Rewards.vehiclePrizeGarage or 'pillboxgarage')
-    end
-
-    -- Notify client
-    TriggerClientEvent('dps-roxwoodracing:client:rewardNotify', pid, {
-      positionPayout = positionPayout,
-      positionLabel = positionLabel,
-      participation = participation,
-      bestLapBonus = bestLapBonus,
-      vehiclePrize = vehiclePrize,
-      totalPayout = totalPayout,
-    })
-
-    ::continueReward::
-  end
-end
-
---------------------------------------------------------------------------------
--- Entry Fee: distribute prize pool at race end
---------------------------------------------------------------------------------
-local function DistributePrizePool(lob, results)
-  if not Config.EntryFee or not Config.EntryFee.enabled then return end
-  if not Bridge.Framework then return end
-  local pool = lob.prizePool or 0
-  if pool <= 0 then return end
-
-  for pos, entry in ipairs(results) do
-    local pct = Config.EntryFee.poolSplit[pos]
-    if pct and pct > 0 then
-      local payout = math.floor(pool * pct / 100)
-      if payout > 0 and Bridge.AddMoney(entry.id, Config.EntryFee.moneyType or 'cash', payout, 'speedway-prizepool') then
-        TriggerClientEvent('dps-roxwoodracing:client:rewardNotify', entry.id, { poolPayout = payout })
-      end
-    end
-  end
-end
-
---------------------------------------------------------------------------------
--- Stats: save race stats to database
---------------------------------------------------------------------------------
-local function SaveRaceStats(pid, position, track, bestLap, earnings)
-  if not Config.Stats or not Config.Stats.enabled then return end
-  local cid = GetCitizenId(pid)
-  if not cid then return end
-
-  local isWin = position == 1 and 1 or 0
-  local isTop3 = position <= 3 and 1 or 0
-  earnings = earnings or 0
-
-  -- Fetch existing row to (a) merge best_laps and (b) compute updated totals
-  -- locally so we can skip a read-back query after the upsert.
-  local existing = MySQL.single.await(
-    'SELECT total_races, wins, best_laps FROM speedway_stats WHERE citizenid = ?',
-    { cid }
-  )
-  local bestLaps = {}
-  local prevRaces, prevWins = 0, 0
-  if existing then
-    bestLaps  = json.decode(existing.best_laps or '{}') or {}
-    prevRaces = existing.total_races or 0
-    prevWins  = existing.wins        or 0
-  end
-
-  local newRecord = false
-  if bestLap and bestLap > 0 then
-    if not bestLaps[track] or bestLap < bestLaps[track] then
-      bestLaps[track] = bestLap
-      newRecord = true
-    end
-  end
-
-  local encoded = json.encode(bestLaps)
-  MySQL.query.await([[
-    INSERT INTO speedway_stats (citizenid, total_races, wins, top3, total_earnings, best_laps, last_race)
-    VALUES (?, 1, ?, ?, ?, ?, NOW())
-    ON DUPLICATE KEY UPDATE
-      total_races = total_races + 1,
-      wins = wins + ?,
-      top3 = top3 + ?,
-      total_earnings = total_earnings + ?,
-      best_laps = ?,
-      last_race = NOW()
-  ]], { cid, isWin, isTop3, earnings, encoded, isWin, isTop3, earnings, encoded })
-
-  -- Notify client without a read-back query: we have all the fields locally.
-  if Config.Stats.showAfterRace then
-    TriggerClientEvent('dps-roxwoodracing:client:statsNotify', pid, {
-      wins        = prevWins  + isWin,
-      totalRaces  = prevRaces + 1,
-      bestLap     = bestLaps[track],
-      newRecord   = newRecord and bestLap or nil,
-    })
-  end
-end
-
---------------------------------------------------------------------------------
--- Stats callback for /racestats command
---------------------------------------------------------------------------------
-lib.callback.register('dps-roxwoodracing:getPlayerStats', function(source)
-  local cid = GetCitizenId(source)
-  if not cid then return nil end
-  local row = MySQL.single.await('SELECT * FROM speedway_stats WHERE citizenid = ?', { cid })
-  if not row then return nil end
-  row.best_laps = json.decode(row.best_laps or '{}') or {}
-  return row
-end)
-
---------------------------------------------------------------------------------
--- Entry Fee: helper to charge/refund
---------------------------------------------------------------------------------
-local function ChargeEntryFee(pid)
-  if not Config.EntryFee or not Config.EntryFee.enabled then return true end
-  if not Bridge.Framework then return true end
-  local amount = Config.EntryFee.amount or 0
-  if amount <= 0 then return true end
-  local moneyType = Config.EntryFee.moneyType or 'cash'
-  if Bridge.GetMoney(pid, moneyType) < amount then
-    ServerNotify(pid, 'Speedway', Locale("entry_fee_insufficient", amount), 'error')
-    return false
-  end
-  Bridge.RemoveMoney(pid, moneyType, amount, 'speedway-entryfee')
-  ServerNotify(pid, 'Speedway', Locale("entry_fee_charged", amount), 'inform')
-  return true
-end
-
-local function RefundEntryFee(pid)
-  if not Config.EntryFee or not Config.EntryFee.enabled then return end
-  if not Bridge.Framework then return end
-  local amount = Config.EntryFee.amount or 0
-  if amount <= 0 then return end
-  Bridge.AddMoney(pid, Config.EntryFee.moneyType or 'cash', amount, 'speedway-entryfee-refund')
-  ServerNotify(pid, 'Speedway', Locale("entry_fee_refunded", amount), 'success')
-end
-
---------------------------------------------------------------------------------
 -- lobby storage
 --------------------------------------------------------------------------------
 local lobbies        = {}    -- [lobbyName] = { owner, track, laps, players, ... }
@@ -300,58 +80,6 @@ local amirState      = {}    -- per-lobby AMIR throttle and last state
 --                 the next running lobby.
 local gridLocked   = false
 local primaryLobby = nil
-
--- Helper: build a license plate string from a player's character name (fallback to Rockstar name)
--- - Uppercase alphanumerics only
--- - Max 8 characters (GTA V plate limit)
--- - Optionally uniquified with digits if a collision occurs within the same spawn batch
-local function makePlateFromPlayer(pid, used)
-  local first, last = Bridge.GetPlayerFirstLast(pid)
-
-  local function san(s)
-    if not s then return "" end
-    s = tostring(s)
-    s = s:gsub("%s+", ""):upper():gsub("[^A-Z0-9]", "")
-    return s
-  end
-
-  local candidates = {}
-  -- Prefer full name smashed if it fits/exists
-  if first or last then
-    table.insert(candidates, san((first or "") .. (last or "")))
-    -- Also try first initial + last (keeps surname readable in 8 chars)
-    local fi = first and first:sub(1,1) or ""
-    table.insert(candidates, san(fi .. (last or "")))
-  end
-  -- Fallback to Rockstar name
-  table.insert(candidates, san(GetPlayerName(pid) or ""))
-  -- Final fallback
-  table.insert(candidates, "SPD")
-
-  local str = "SPD"
-  for _, c in ipairs(candidates) do
-    if c and #c > 0 then str = c break end
-  end
-  if #str > 8 then str = str:sub(1, 8) end
-
-  -- Ensure uniqueness within the provided 'used' set by appending digits, trimming if needed
-  if used then
-    local base = str
-    local suffix = 0
-    while used[str] do
-      suffix = suffix + 1
-      local suf = tostring(suffix)
-      local take = math.max(0, 8 - #suf)
-      str = base:sub(1, take) .. suf
-    end
-    used[str] = true
-  end
-
-  if Config.DebugPrints then
-    print(('[DEBUG] Plate for %s -> %s'):format(tostring(pid), str))
-  end
-  return str
-end
 
 -- Helper: find lobby by player id
 local function findLobbyByPlayer(pid)
@@ -494,9 +222,9 @@ RegisterNetEvent("dps-roxwoodracing:createLobby", function(lobbyName, trackType,
   end
 
   -- Charge entry fee to creator
-  if not ChargeEntryFee(src) then return end
+  if not Rewards.ChargeEntryFee(src, lobbyName) then return end
 
-  local entryFeeAmount = (Config.EntryFee and Config.EntryFee.enabled) and (Config.EntryFee.amount or 0) or 0
+  local entryFeeAmount = Rewards.FeeAmount()
 
   lobbies[lobbyName] = {
     owner              = src,
@@ -550,8 +278,8 @@ RegisterNetEvent("dps-roxwoodracing:joinLobby", function(lobbyName)
       end
     end
     -- Charge entry fee before adding to lobby
-    if not ChargeEntryFee(src) then return end
-    local entryFeeAmount = (Config.EntryFee and Config.EntryFee.enabled) and (Config.EntryFee.amount or 0) or 0
+    if not Rewards.ChargeEntryFee(src, lobbyName) then return end
+    local entryFeeAmount = Rewards.FeeAmount()
     lobby.prizePool = (lobby.prizePool or 0) + entryFeeAmount
 
     table.insert(lobby.players, src)
@@ -617,9 +345,9 @@ RegisterNetEvent("dps-roxwoodracing:leaveLobby", function()
       if id == src then
         -- Refund entry fee if race hasn't started
         if not lobby.isStarted then
-          RefundEntryFee(src)
+          Rewards.RefundEntryFee(src, name)
           _refundCD[src] = GetGameTimer()
-          local entryFeeAmount = (Config.EntryFee and Config.EntryFee.enabled) and (Config.EntryFee.amount or 0) or 0
+          local entryFeeAmount = Rewards.FeeAmount()
           lobby.prizePool = math.max(0, (lobby.prizePool or 0) - entryFeeAmount)
         end
 
@@ -628,7 +356,7 @@ RegisterNetEvent("dps-roxwoodracing:leaveLobby", function()
           -- owner left → close lobby, refund remaining players if race hasn't started
           for _, player in ipairs(lobby.players) do
             if not lobby.isStarted then
-              RefundEntryFee(player)
+              Rewards.RefundEntryFee(player, name)
             end
             ServerNotify(player, 'Speedway', Locale("lobby_closed_by_owner", name), 'warning')
             TriggerClientEvent("dps-roxwoodracing:updateLobbyInfo", player, nil)
@@ -677,7 +405,6 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
 
   local usedPlates = {}
   local spawnedNetIds = {}
-  TriggerClientEvent('dps-roxwoodracing:cam:broadcastOn', -1)
 
   -- Record starting grid order for "Most Improved" calculation
   lob.gridOrder = {}
@@ -693,7 +420,8 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
       local veh = CreateVehicle(joaat(m), sp.x, sp.y, sp.z, sp.w, true, false)
       while not DoesEntityExist(veh) do Wait(0) end
       local netId = NetworkGetNetworkIdFromEntity(veh)
-      local plate = makePlateFromPlayer(pid, usedPlates)
+      local first, last = Bridge.GetPlayerFirstLast(pid)
+      local plate = Plates.FromName(first, last, GetPlayerName(pid), usedPlates)
       SetVehicleNumberPlateText(veh, plate)
       SetVehicleDoorsLocked(veh, 1)
       TriggerClientEvent("dps-roxwoodracing:client:fillFuel", pid, netId)
@@ -852,8 +580,6 @@ RegisterNetEvent("dps-roxwoodracing:startRace", function(lobbyName)
       -- nobody left or nobody selected: cancel race
       pendingChoices[lobbyName] = nil
       lob.isStarted = false
-      -- Ensure broadcast turns off if it was turned on earlier for this lobby
-      TriggerClientEvent('dps-roxwoodracing:cam:broadcastOff', -1)
       for _, pid in ipairs(lob.players) do
         ServerNotify(pid, 'Speedway', Locale("race_cancelled"), 'error')
       end
@@ -925,17 +651,7 @@ RegisterNetEvent("dps-roxwoodracing:updateProgress", function(lobbyName, dist)
     })
   end
 
-  table.sort(board, function(a, b)
-    if a.lap ~= b.lap then
-      return a.lap > b.lap
-    end
-    local acp = lob.checkpointProgress[a.id] or 0
-    local bcp = lob.checkpointProgress[b.id] or 0
-    if acp ~= bcp then
-      return acp > bcp
-    end
-    return a.dist > b.dist
-  end)
+  Ranking.SortBoard(board, lob.checkpointProgress)
 
   -- Broadcast leader changes to all clients for spectator cameras
   do
@@ -945,8 +661,6 @@ RegisterNetEvent("dps-roxwoodracing:updateProgress", function(lobbyName, dist)
       if leaderId ~= lob.lastLeader then
         lob.lastLeader = leaderId
         TriggerClientEvent('dps-roxwoodracing:leaderChanged', -1, lobbyName, leaderId)
-        -- Inform feed module so it can request screenshots from the leader's client
-        TriggerEvent('dps-roxwoodracing:feed:setLeader', lobbyName, leaderId)
       end
     end
   end
@@ -1154,63 +868,13 @@ RegisterNetEvent("dps-roxwoodracing:lapPassed", function(lobbyName)
       if not lob.finished[pid] then allFin = false break end
     end
     if allFin then
-      -- Build expanded results with best lap, payouts, and "Most Improved"
-      local results = {}
-      local globalBestLap, bestLapPlayer = math.huge, nil
-      for _, pid in ipairs(lob.players) do
-        local sum, best = 0, math.huge
-        for _, t in ipairs(lob.lapTimes[pid] or {}) do
-          sum = sum + t
-          if t < best then best = t end
-        end
-        if best < globalBestLap then
-          globalBestLap = best
-          bestLapPlayer = pid
-        end
-        if best == math.huge then best = 0 end
-        results[#results+1] = {
-          id = pid,
-          name = Bridge.GetPlayerName(pid) or ("Player " .. pid),
-          time = sum,
-          bestLap = best,
-          lapTimes = lob.lapTimes[pid],
-        }
-      end
-      table.sort(results, function(a,b) return a.time < b.time end)
+      local results, bestLapPlayer, mostImprovedId = Ranking.BuildResults(lob.players, lob.lapTimes, lob.gridOrder,
+        function(pid) return Bridge.GetPlayerName(pid) or ('Player ' .. pid) end)
 
-      -- Add position, payout info, and best-lap flag
-      for pos, entry in ipairs(results) do
-        entry.position = pos
-        entry.payout = 0
-        if Config.Rewards and Config.Rewards.enabled then
-          entry.payout = (Config.Rewards.payouts[pos] or 0)
-              + (Config.Rewards.participationReward or 0)
-          if entry.id == bestLapPlayer and Config.Rewards.bestLapBonus then
-            entry.payout = entry.payout + Config.Rewards.bestLapBonus
-            entry.isBestLap = true
-          end
-        end
-        if Config.EntryFee and Config.EntryFee.enabled and lob.prizePool then
-          local pct = Config.EntryFee.poolSplit[pos] or 0
-          entry.payout = entry.payout + math.floor((lob.prizePool * pct) / 100)
-        end
-      end
-
-      -- Calculate "Most Improved" (biggest gain from grid position to finish)
-      local mostImprovedId, mostImprovedGain = nil, 0
-      for _, entry in ipairs(results) do
-        local gridPos = lob.gridOrder and lob.gridOrder[entry.id] or entry.position
-        local gain = gridPos - entry.position  -- positive = gained positions
-        if gain > mostImprovedGain then
-          mostImprovedGain = gain
-          mostImprovedId = entry.id
-        end
-        entry.gridPosition = gridPos
-      end
-      if mostImprovedGain <= 0 then mostImprovedId = nil end
-      for _, entry in ipairs(results) do
-        entry.isMostImproved = (entry.id == mostImprovedId)
-      end
+      -- Pay everyone through the society account, then stamp totals onto the results
+      lob.name = lobbyName
+      local payouts, purseCovered = Rewards.Settle(lob, results, bestLapPlayer)
+      for _, entry in ipairs(results) do entry.payout = payouts[entry.id] and payouts[entry.id].total or 0 end
 
       -- Broadcast expanded results to all race participants
       for _, pid in ipairs(lob.players) do
@@ -1219,15 +883,10 @@ RegisterNetEvent("dps-roxwoodracing:lapPassed", function(lobbyName)
           bestLapPlayer = bestLapPlayer,
           mostImprovedPlayer = mostImprovedId,
           track = lob.track,
+          purseCovered = purseCovered,
         })
         TriggerClientEvent("dps-roxwoodracing:client:destroyprops", pid)
       end
-
-      -- Grant rewards (cash payouts, best lap bonus, vehicle prizes)
-      GrantRewards(lob, results, lobbyName)
-
-      -- Distribute entry fee prize pool
-      DistributePrizePool(lob, results)
 
       -- Save persistent race stats for each player.
       -- Each call is wrapped in CreateThread so the per-player DB queries
@@ -1236,12 +895,10 @@ RegisterNetEvent("dps-roxwoodracing:lapPassed", function(lobbyName)
         local totalEarnings = entry.payout or 0
         local pidLocal, posLocal, bestLapLocal = entry.id, pos, entry.bestLap or 0
         CreateThread(function()
-          SaveRaceStats(pidLocal, posLocal, lob.track, bestLapLocal, totalEarnings)
+          Stats.Save(pidLocal, posLocal, lob.track, bestLapLocal, totalEarnings, lob.mode)
         end)
       end
 
-      -- Race fully concluded: switch jumbotron back to IDLE for everyone
-      TriggerClientEvent('dps-roxwoodracing:cam:broadcastOff', -1)
       -- Reset leader tracking for this lobby
       lob.lastLeader = -1
 
