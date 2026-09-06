@@ -36,9 +36,9 @@ Config.Practice.ai = {
     -- Speed profile from the line's shape (m/s): straights run topSpeed, a bend of
     -- fullTurnDeg or more over ~36 m runs cornerSpeed, braking starts brakePoints early
     topSpeed       = 60.0,           -- ~216 km/h
-    cornerSpeed    = 18.0,           -- ~65 km/h
-    brakePoints    = 8,              -- points (5 x 12 m) before a corner to start slowing
-    fullTurnDeg    = 35,
+    cornerSpeed    = 26.0,           -- ~94 km/h
+    brakePoints    = 6,              -- points (5 x 12 m) before a corner to start slowing
+    fullTurnDeg    = 50,
     releaseBehind  = 12,             -- release point: this many points (12 x 12 m) before the player
     staggerMs      = 35000,          -- one car released every 35 s
     -- Aim point: `aimSeconds` of travel ahead of the car's progress on the line, clamped to
@@ -55,12 +55,12 @@ Config.Practice.ai = {
     stuckMs        = 6000,           -- no movement for this long = put it back on the line
     noProgressMs   = 10000,          -- no progress along the line for this long = also stuck (AI reversing at a wall)
     stuckSkipPts   = 8,              -- stuck twice at the same spot: skip this many points past it
-    aggressiveness = 0.6,
+    aggressiveness = 0.9,
     paceVariance   = 0.08,           -- each car's pace = cruiseSpeed x (1 +/- this)
     laneJitter     = 1.0,            -- each car keeps its own lateral bias of up to this (m)
     -- Race awareness: slow toward a car ahead inside this window and aim past it
     aware = {
-        range          = 50.0,       -- metres ahead to look
+        range          = 35.0,       -- metres ahead to look
         lateral        = 6.0,        -- metres either side that counts as "in my way"
         minSpeed       = 9.0,        -- never crawl slower than this behind someone
         overtakeOffset = 3.5,        -- aim this far to the free side to pass
