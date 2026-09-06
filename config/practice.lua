@@ -102,9 +102,9 @@ Config.Practice.mode = {
     maxLapMs      = 600000,
     keepLaps      = 5,       -- rolling average over this many laps
     -- AI pace against the best rolling average among players on the track:
-    defaultPace   = 0.85,    -- grid pace when nobody on the track has an average yet
-    margin        = 0.03,    -- AI aims to lap this fraction quicker than that average
-    minPace       = 0.75,
-    maxPace       = 1.05,
+    defaultPace   = 0.95,    -- grid pace when nobody on the track has an average yet
+    margin        = 0.05,    -- AI aims to lap this fraction quicker than that average
+    minPace       = 0.80,
+    maxPace       = 1.20,    -- the AI may run beyond the physics profile; the human edge is the edge
     clearMargin   = 60.0,    -- players within line extent + this (m) are moved off at GO
 }
