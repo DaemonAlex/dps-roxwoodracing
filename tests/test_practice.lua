@@ -19,3 +19,21 @@ TEST('Practice.PrevIndex walks backwards with wrap', function()
   EQ(Practice.PrevIndex(20, 348, 12), 8)
   EQ(Practice.PrevIndex(5, 348, 12), 341)
 end)
+TEST('Practice.Relative and Decide: slow behind a car ahead and aim past its free side', function()
+  local aware = { range = 40.0, lateral = 5.0, minSpeed = 12.0, overtakeOffset = 3.5 }
+  local ahead, lateral = Practice.Relative({x=0,y=0}, {x=0,y=1}, {x=2,y=20})
+  EQ(ahead, 20.0); EQ(lateral, 2.0)   -- +x while facing +y is the right-hand side
+  local speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = 2.0 } }, aware)
+  EQ(speed, 15.0); EQ(off, -3.5)      -- car ahead sits right, pass on the left
+  speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = -2.0 } }, aware)
+  EQ(off, 3.5)
+  speed, off = Practice.Decide(30.0, { { ahead = -5.0, lateral = 0.0 }, { ahead = 60.0, lateral = 0.0 } }, aware)
+  EQ(speed, 30.0); EQ(off, 0.0)
+  speed = Practice.Decide(30.0, { { ahead = 2.0, lateral = 0.0 } }, aware)
+  EQ(speed, 12.0)
+end)
+TEST('Practice.OffsetPoint shifts to the right of travel', function()
+  local pts = { {x=0,y=0,z=1}, {x=0,y=10,z=1} }
+  local x, y = Practice.OffsetPoint(pts, 1, 2, 3.5)
+  EQ(x, 3.5); EQ(y, 0.0)
+end)

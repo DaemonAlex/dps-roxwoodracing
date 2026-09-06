@@ -54,8 +54,30 @@ local function pickModels(n)
 end
 
 local function driveTo(c, pt)
-  TaskVehicleDriveToCoord(c.ped, c.veh, pt.x, pt.y, pt.z, cfg.cruiseSpeed or 30.0, 0,
+  local x, y, z = pt.x, pt.y, pt.z
+  if c.offset and c.offset ~= 0 and c.pts then x, y, z = Practice.OffsetPoint(c.pts, c.idx, #c.pts, c.offset) end
+  TaskVehicleDriveToCoord(c.ped, c.veh, x, y, z, c.speed or cfg.cruiseSpeed or 30.0, 0,
     GetEntityModel(c.veh), cfg.drivingStyle or 786603, cfg.stopRange or 2.0, -1)
+end
+
+-- Look at the other racers (and the player's car) and set this car's pace and aim.
+local function raceLogic(c, others)
+  local pos = GetEntityCoords(c.veh)
+  local fwd = GetEntityForwardVector(c.veh)
+  local blockers = {}
+  for _, o in ipairs(others) do
+    if o ~= c.veh and DoesEntityExist(o) then
+      local ahead, lateral = Practice.Relative(pos, fwd, GetEntityCoords(o))
+      blockers[#blockers + 1] = { ahead = ahead, lateral = lateral }
+    end
+  end
+  local speed, offset = Practice.Decide(c.cruise, blockers, cfg.aware)
+  local changed = math.abs(speed - (c.speed or 0)) > 1.0 or offset ~= (c.offset or 0)
+  c.speed, c.offset = speed, offset
+  if changed then
+    SetDriveTaskCruiseSpeed(c.ped, speed)
+    driveTo(c, c.pts[c.idx])
+  end
 end
 
 local function placeOnLine(c, pt)
@@ -122,11 +144,17 @@ local function spawn()
       SetPedFleeAttributes(ped, 0, false)
       SetPedCanBeDraggedOut(ped, false)
       SetDriverAbility(ped, 1.0)
-      SetDriverAggressiveness(ped, cfg.aggressiveness or 0.4)
+      SetDriverAggressiveness(ped, cfg.aggressiveness or 0.6)
+      SetDriverRacingModifier(ped, 1.0)
       SetPedKeepTask(ped, true)
+      SetVehicleCanBeVisiblyDamaged(veh, false)
+      SetVehicleEngineCanDegrade(veh, false)
       FreezeEntityPosition(veh, false)
       FreezeEntityPosition(ped, false)
-      local c = { veh = veh, ped = ped, idx = idx, lastMove = GetGameTimer(), slot = i }
+      local c = { veh = veh, ped = ped, idx = idx, lastMove = GetGameTimer(), slot = i, pts = pts, offset = 0.0 }
+      local v = cfg.paceVariance or 0.08
+      c.cruise = (cfg.cruiseSpeed or 30.0) * (1 - v + 2 * v * math.random())
+      c.speed = c.cruise
       c.idx = Practice.NextIndex(idx, n, cfg.lookahead or 3)
       cars[#cars + 1] = c
       driveTo(c, pts[c.idx])
@@ -155,8 +183,13 @@ startSteering = function(pts, n)
   CreateThread(function()
     while running do
       local now = GetGameTimer()
+      local others = {}
+      for _, c in ipairs(cars) do others[#others + 1] = c.veh end
+      local mine = GetVehiclePedIsIn(PlayerPedId(), false)
+      if mine ~= 0 then others[#others + 1] = mine end
       for _, c in ipairs(cars) do
         if DoesEntityExist(c.veh) and DoesEntityExist(c.ped) then
+          raceLogic(c, others)
           local pos = GetEntityCoords(c.veh)
           if Practice.Dist2D(pos, pts[c.idx]) <= (cfg.reachRadius or 20.0) then
             local nxt, wrapped = Practice.NextIndex(c.idx, n, 1)

@@ -30,7 +30,15 @@ Config.Practice.ai = {
     stopRange      = 2.0,
     tickMs         = 250,            -- steering tick while cars are up
     stuckMs        = 8000,           -- no movement for this long = put it back on the line
-    aggressiveness = 0.4,
+    aggressiveness = 0.6,
+    paceVariance   = 0.08,           -- each car's pace = cruiseSpeed x (1 +/- this)
+    -- Race awareness: slow toward a car ahead inside this window and aim past it
+    aware = {
+        range          = 40.0,       -- metres ahead to look
+        lateral        = 5.0,        -- metres either side that counts as "in my way"
+        minSpeed       = 12.0,       -- never crawl slower than this behind someone
+        overtakeOffset = 3.5,        -- aim this far to the free side to pass
+    },
     -- 4 swerve cars, 8 steer round stationary cars, 16 steer round peds, 32 steer round
     -- objects, 512 may drive into oncoming, 134217728 force straight line (no road nodes)
     drivingStyle   = 4 + 8 + 16 + 32 + 512 + 134217728,

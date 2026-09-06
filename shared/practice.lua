@@ -43,3 +43,37 @@ function Practice.PrevIndex(idx, n, back)
   while j < 1 do j = j + n end
   return j
 end
+
+--- Where `other` sits relative to a car at `pos` facing `fwd` (2D): ahead (m along
+--- heading, negative = behind) and lateral (m to the right, negative = left).
+function Practice.Relative(pos, fwd, other)
+  local dx, dy = other.x - pos.x, other.y - pos.y
+  local ahead = dx * fwd.x + dy * fwd.y
+  local lateral = dx * fwd.y - dy * fwd.x
+  return ahead, lateral
+end
+
+--- Race decision against the nearest car ahead inside the awareness window.
+--- Returns speed to run and the lateral aim offset (m, +right) to pass with.
+function Practice.Decide(cruise, blockers, aware)
+  local best
+  for _, b in ipairs(blockers) do
+    if b.ahead > 1.0 and b.ahead <= aware.range and math.abs(b.lateral) <= aware.lateral then
+      if not best or b.ahead < best.ahead then best = b end
+    end
+  end
+  if not best then return cruise, 0.0 end
+  local speed = math.max(aware.minSpeed, cruise * (best.ahead / aware.range))
+  local offset = best.lateral >= 0 and -aware.overtakeOffset or aware.overtakeOffset
+  return speed, offset
+end
+
+--- Point `offset` m to the right of the line at index idx (right of the direction of travel).
+function Practice.OffsetPoint(pts, idx, n, offset)
+  local a, b = pts[idx], pts[Practice.NextIndex(idx, n, 1)]
+  local dx, dy = b.x - a.x, b.y - a.y
+  local len = math.sqrt(dx * dx + dy * dy)
+  if len < 0.01 or offset == 0 then return a.x, a.y, a.z end
+  local rx, ry = dy / len, -dx / len
+  return a.x + rx * offset, a.y + ry * offset, a.z
+end
