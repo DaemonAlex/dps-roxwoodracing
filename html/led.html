@@ -3,13 +3,18 @@
     <head>
         <title>Speedway Sign</title>
         <style>
+            /* Signage face: bold condensed sans (Barlow Condensed, OFL), shipped locally
+               so the board never waits on an internet font fetch. */
             @font-face {
-                font-family: 'LCDMB';
-                src: url('LCDMB___.TTF') format('truetype');
+                font-family: 'SignFace';
+                src: url('BarlowCondensed-Bold.ttf') format('truetype');
+                font-weight: 700;
             }
             * {
                 color: white;
-                font-family: 'LCDMB', sans-serif;
+                font-family: 'SignFace', 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+                font-weight: 700;
+                letter-spacing: 0.02em;
             }
             span {
                 position:fixed;
@@ -19,7 +24,8 @@
                 align-items: center;
                 justify-content: center;
                 text-align: center;
-                font-size: 38px;
+                font-size: 46px;
+                line-height: 1;
                 overflow: hidden;
             }
             div {

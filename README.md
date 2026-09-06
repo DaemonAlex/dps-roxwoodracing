@@ -211,7 +211,7 @@ Migration from rox_speedway: the old `speedway_stats` table is renamed automatic
 
 ### `config/pit.lua`
 
-`PitCrewZones` (`coords`, `heading`, `radius` per box), `PitCrewModel`, `PitCrewIdleOffsets`, `PitCrewCrewOffsets`, `PitStopTiming` (`crewWalkSpeed`, `refuelSteps`, `refuelStepMs`, `repairDuration`, `approachTimeout`, `returnTimeout`), `PitCrewIdleAnims`.
+`PitCrewZones` (`coords`, `heading`, `radius` per box), `PitCrewModels` (random model + outfit per crew member; missing models are skipped), `PitCrewIdleOffsets`, `PitCrewCrewOffsets`, `PitStopTiming` (`crewWalkSpeed`, `refuelSteps`, `refuelStepMs`, `repairDuration`, `approachTimeout`, `returnTimeout`), `PitCrewIdleAnims`.
 
 ## Commands and keys
 
