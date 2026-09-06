@@ -113,3 +113,34 @@ function Practice.AimByCurvature(pts, prog, n, minPts, maxPts, maxTurnDeg, close
   if count < minPts then return minPts end
   return count
 end
+
+--- Distance (2D) from point p to the segment a-b.
+function Practice.DistToSegment(p, a, b)
+  local vx, vy = b.x - a.x, b.y - a.y
+  local wx, wy = p.x - a.x, p.y - a.y
+  local len2 = vx * vx + vy * vy
+  local t = 0.0
+  if len2 > 0.0001 then t = math.max(0.0, math.min(1.0, (wx * vx + wy * vy) / len2)) end
+  local cx, cy = a.x + t * vx, a.y + t * vy
+  return math.sqrt((p.x - cx) ^ 2 + (p.y - cy) ^ 2)
+end
+
+--- Largest aim (points ahead of prog, minPts..maxPts) such that the straight line from
+--- `pos` to the aim point passes within `maxCut` metres of every line point between.
+--- This is what stops corner cutting: the aim shortens exactly where the line bends away.
+function Practice.AimByChord(pts, pos, prog, n, minPts, maxPts, maxCut, closed)
+  local best = minPts
+  for k = minPts, maxPts do
+    local j = prog + k
+    if j > n then if closed then j = j - n else break end end
+    local ok = true
+    for m = 1, k - 1 do
+      local i = prog + m
+      if i > n then i = i - n end
+      if Practice.DistToSegment(pts[i], pos, pts[j]) > maxCut then ok = false break end
+    end
+    if not ok then break end
+    best = k
+  end
+  return best
+end

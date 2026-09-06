@@ -226,8 +226,11 @@ startSteering = function()
           local aim = Practice.AimPoints(GetEntitySpeed(c.veh), cfg.aimSeconds or 2.0, Config.Practice.recordSpacing or 12.0,
             cfg.aimMinPts or 4, cfg.aimMaxPts or 14)
           -- ...but never past a bend: a straight aim through a corner ends in the wall.
-          local curv = Practice.AimByCurvature(c.pts, c.prog, c.n, cfg.aimCornerPts or 2, cfg.aimMaxPts or 14, cfg.aimMaxTurnDeg or 15, c.closed)
+          local curv = Practice.AimByCurvature(c.pts, c.prog, c.n, cfg.aimCornerPts or 2, cfg.aimMaxPts or 14, cfg.aimMaxTurnDeg or 25, c.closed)
           if curv < aim then aim = curv end
+          -- ...and never cut the corner: the chord from the car to the aim stays near the line.
+          local chord = Practice.AimByChord(c.pts, pos, c.prog, c.n, cfg.aimCornerPts or 2, aim, cfg.aimMaxCut or 1.5, c.closed)
+          if chord < aim then aim = chord end
           local want = Practice.NextIndex(c.prog, c.n, aim)
           if Practice.Forward(c.idx, want, c.n) >= (cfg.retargetStep or 2) then
             c.idx = want

@@ -63,3 +63,12 @@ TEST('Practice.AimByCurvature aims far on a straight and short into a bend', fun
   for i = 1, 36 do ring[i] = { x = 0, y = 0, z = 0, h = (i - 1) * 10.0 } end
   EQ(Practice.AimByCurvature(ring, 35, 36, 2, 14, 15, true), 2)     -- wraps and stays short
 end)
+TEST('Practice.AimByChord aims far on a straight and shortens at the turn-in', function()
+  local pts = {}
+  for i = 1, 20 do pts[i] = { x = i * 12.0, y = 0.0, z = 0 } end                 -- straight east
+  for i = 21, 40 do pts[i] = { x = 240.0 + 12.0, y = (i - 20) * 12.0, z = 0 } end -- then north
+  EQ(Practice.AimByChord(pts, { x = 0, y = 0 }, 1, 40, 2, 14, 1.5, false), 14)   -- all straight ahead
+  local k = Practice.AimByChord(pts, { x = 168, y = 0 }, 14, 40, 2, 14, 1.5, false)
+  EQ(k, 6)                                                                       -- reaches the corner point 20, not past it
+  EQ(Practice.DistToSegment({ x = 5, y = 3 }, { x = 0, y = 0 }, { x = 10, y = 0 }), 3.0)
+end)
