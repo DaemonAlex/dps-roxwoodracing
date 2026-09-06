@@ -122,10 +122,13 @@ local function spawn()
       SetDriverAbility(ped, 1.0)
       SetDriverAggressiveness(ped, cfg.aggressiveness or 0.4)
       SetPedKeepTask(ped, true)
+      FreezeEntityPosition(veh, false)
+      FreezeEntityPosition(ped, false)
       local c = { veh = veh, ped = ped, idx = idx, lastMove = GetGameTimer(), slot = i }
       c.idx = Practice.NextIndex(idx, n, cfg.lookahead or 3)
       cars[#cars + 1] = c
       driveTo(c, pts[c.idx])
+      c.lastTask = GetGameTimer()
       SetModelAsNoLongerNeeded(hash)
     else
       log(('model %s failed to load, skipped'):format(tostring(models[i])))
@@ -149,8 +152,9 @@ local function spawn()
             driveTo(c, pts[c.idx])
           end
           local status = GetScriptTaskStatus(c.ped, DRIVE_TASK)
-          if status ~= 0 and status ~= 1 then
+          if status == 7 and now - (c.lastTask or 0) > 2000 then
             driveTo(c, pts[c.idx])
+            c.lastTask = now
             c.retasks = (c.retasks or 0) + 1
           end
           if not c.logged and now - c.lastMove > 3000 then
