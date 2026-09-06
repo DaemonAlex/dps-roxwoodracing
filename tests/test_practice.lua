@@ -24,13 +24,13 @@ TEST('Practice.Relative and Decide: slow behind a car ahead and aim past its fre
   local ahead, lateral = Practice.Relative({x=0,y=0}, {x=0,y=1}, {x=2,y=20})
   EQ(ahead, 20.0); EQ(lateral, 2.0)   -- +x while facing +y is the right-hand side
   local speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = 2.0 } }, aware)
-  EQ(speed, 15.0); EQ(off, -3.5)      -- car ahead sits right, pass on the left
+  EQ(speed, 30.0); EQ(off, -3.5)      -- car ahead sits right: hold pace, pass on the left
   speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = -2.0 } }, aware)
   EQ(off, 3.5)
   speed, off = Practice.Decide(30.0, { { ahead = -5.0, lateral = 0.0 }, { ahead = 60.0, lateral = 0.0 } }, aware)
   EQ(speed, 30.0); EQ(off, 0.0)
   speed = Practice.Decide(30.0, { { ahead = 2.0, lateral = 0.0 } }, aware)
-  EQ(speed, 12.0)
+  EQ(speed, 24.0)                     -- right on its tail: lift to 80%
 end)
 TEST('Practice.OffsetPoint shifts to the right of travel', function()
   local pts = { {x=0,y=0,z=1}, {x=0,y=10,z=1} }
@@ -40,7 +40,7 @@ end)
 TEST('Practice.Decide only starts the pass move inside passWithin', function()
   local aware = { range = 50.0, lateral = 6.0, minSpeed = 9.0, overtakeOffset = 3.5, passWithin = 25.0 }
   local speed, off = Practice.Decide(60.0, { { ahead = 40.0, lateral = 1.0 } }, aware)
-  EQ(off, 0.0); EQ(speed, 48.0)
+  EQ(off, 0.0); EQ(speed, 60.0)
   speed, off = Practice.Decide(60.0, { { ahead = 20.0, lateral = 1.0 } }, aware)
   EQ(off, -3.5)
 end)

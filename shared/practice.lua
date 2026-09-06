@@ -63,10 +63,14 @@ function Practice.Decide(cruise, blockers, aware)
     end
   end
   if not best then return cruise, 0.0 end
-  local speed = math.max(aware.minSpeed, cruise * (best.ahead / aware.range))
-  local offset = 0.0
+  -- Racing, not queueing: hold pace and move to the free side to pass; only lift when
+  -- right on the car ahead (closeGap), and then only to a fraction of pace.
+  local speed, offset = cruise, 0.0
   if best.ahead <= (aware.passWithin or aware.range) then
     offset = best.lateral >= 0 and -aware.overtakeOffset or aware.overtakeOffset
+  end
+  if best.ahead <= (aware.closeGap or 10.0) then
+    speed = math.max(aware.minSpeed, cruise * (aware.closeFactor or 0.8))
   end
   return speed, offset
 end

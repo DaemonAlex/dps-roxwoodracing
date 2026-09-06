@@ -27,6 +27,10 @@ Config.Practice.ai = {
     -- Open-wheel grid (vanilla). nil = random picks from Config.SpecFallbackVehicles.
     models         = { 'openwheel1', 'openwheel2', 'formula', 'formula2' },
     driverModel    = 'a_m_y_motox_01',
+    -- Driver names shown on the LED sign while practice runs (5 characters read best)
+    driverNames    = { 'SANDS', 'PERRO', 'ROX', 'DUNE', 'PIER', 'SURF', 'GULL', 'TIDE' },
+    boardTitle     = 'PRAC',
+    boardEveryMs   = 1000,
     -- Engine audio names streamed by dps-enginesounds; each car takes a random one.
     -- nil = keep the model's own sound.
     audioPriority  = 3,              -- SetAudioVehiclePriority: 0 normal, 1 medium, 3 high, 2 max (max starves other cars)
@@ -69,6 +73,8 @@ Config.Practice.ai = {
         minSpeed       = 9.0,        -- never crawl slower than this behind someone
         overtakeOffset = 3.5,        -- aim this far to the free side to pass
         passWithin     = 25.0,       -- only start the pass move when the car ahead is this close
+        closeGap       = 10.0,       -- lift only when this close behind the car ahead
+        closeFactor    = 0.8,        -- ...and only to this fraction of pace
     },
     -- 1 StopForVehicles, 4 SwerveAroundAllVehicles, 16777216 ForceStraightLine (drive
     -- straight at the aim point, no road-node routing). Object/ped steering flags left

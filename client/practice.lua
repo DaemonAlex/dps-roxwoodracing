@@ -183,6 +183,8 @@ local function spawn()
       c.speed = c.cruise
       c.prog = idx
       c.lastProg = GetGameTimer()
+      c.laps = 0
+      c.driver = (cfg.driverNames and cfg.driverNames[((i - 1) % #cfg.driverNames) + 1]) or ('CAR' .. i)
       c.idx = Practice.NextIndex(idx, n, Practice.AimByCurvature(pts, idx, n, cfg.aimCornerPts or 2, cfg.aimMinPts or 4, cfg.aimMaxTurnDeg or 15, L.closed))
       cars[#cars + 1] = c
       driveTo(c)
@@ -209,6 +211,7 @@ end
 -- line if stuck. Runs only while cars are up; started with the first release.
 startSteering = function()
   CreateThread(function()
+    local lastBoard = 0
     while running do
       local now = GetGameTimer()
       local others = {}
@@ -232,7 +235,10 @@ startSteering = function()
             local di = Practice.Dist2D(pos, c.pts[i])
             if di < bestD then bestI, bestD = i, di end
           end
-          if bestI ~= c.prog then c.prog = bestI; c.lastProg = now end
+          if bestI ~= c.prog then
+            if bestI < c.prog then c.laps = (c.laps or 0) + 1 end   -- crossed the seam
+            c.prog = bestI; c.lastProg = now
+          end
           -- pace for this stretch of line: its speed profile x this car's pace factor
           c.cruise = (c.pts[c.prog].v or cfg.cruiseSpeed or 30.0) * c.pace
           raceLogic(c, others)
@@ -283,8 +289,22 @@ startSteering = function()
           end
         end
       end
+      -- Running order to this client's sign
+      if now - lastBoard >= (cfg.boardEveryMs or 1000) then
+        lastBoard = now
+        local order = {}
+        for _, c in ipairs(cars) do if DoesEntityExist(c.veh) then order[#order + 1] = c end end
+        table.sort(order, function(a, b)
+          if (a.laps or 0) ~= (b.laps or 0) then return (a.laps or 0) > (b.laps or 0) end
+          return a.prog > b.prog
+        end)
+        local names = {}
+        for i = 1, math.min(9, #order) do names[i] = order[i].driver end
+        TriggerEvent('dps-roxwoodracing:practice:board', cfg.boardTitle or 'PRAC', names)
+      end
       Wait(cfg.tickMs or 250)
     end
+    TriggerEvent('dps-roxwoodracing:practice:boardOff')
   end)
 end
 
