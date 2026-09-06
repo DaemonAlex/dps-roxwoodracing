@@ -62,8 +62,8 @@ Config.Practice.ai = {
         overtakeOffset = 3.5,        -- aim this far to the free side to pass
         passWithin     = 25.0,       -- only start the pass move when the car ahead is this close
     },
-    -- 1 stop for cars, 4 swerve around cars, 512 may drive into oncoming,
-    -- 134217728 force straight line (no road nodes). Object/ped steering flags left out:
-    -- they make the AI flinch at barriers.
-    drivingStyle   = 1 + 4 + 512 + 134217728,
+    -- 1 StopForVehicles, 4 SwerveAroundAllVehicles, 16777216 ForceStraightLine (drive
+    -- straight at the aim point, no road-node routing). Object/ped steering flags left
+    -- out: they make the AI flinch at barriers.
+    drivingStyle   = 1 + 4 + 16777216,
 }
