@@ -95,12 +95,11 @@ local function raceLogic(c, others)
     end
   end
   local speed, offset = Practice.Decide(c.cruise, blockers, cfg.aware)
-  local changed = math.abs(speed - (c.speed or 0)) > 1.0 or offset ~= (c.offset or 0)
+  local retask = offset ~= (c.offset or 0)          -- a new aim point needs a new task
+  local respeed = math.abs(speed - (c.speed or 0)) > 1.0
   c.speed, c.offset = speed, offset
-  if changed then
-    SetDriveTaskCruiseSpeed(c.ped, speed)
-    driveTo(c)
-  end
+  if retask then driveTo(c)                         -- driveTo carries the speed too
+  elseif respeed then SetDriveTaskCruiseSpeed(c.ped, speed) end   -- adjust the running task, no restart
 end
 
 local function spawn()
@@ -211,7 +210,7 @@ startSteering = function()
           raceLogic(c, others)
           local pos = GetEntityCoords(c.veh)
           if Practice.Dist2D(pos, c.pts[c.idx]) <= (cfg.reachRadius or 20.0) then
-            local nxt, wrapped = Practice.NextIndex(c.idx, c.n, 1)
+            local nxt, wrapped = Practice.NextIndex(c.idx, c.n, cfg.retargetStep or 2)
             c.idx = nxt
             if wrapped and not c.closed then placeOnLine(c, c.pts[1]); c.idx = Practice.NextIndex(1, c.n, cfg.lookahead or 3) end
             driveTo(c)

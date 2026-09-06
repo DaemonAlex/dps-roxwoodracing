@@ -37,8 +37,9 @@ Config.Practice.ai = {
     fullTurnDeg    = 35,
     releaseBehind  = 12,             -- release point: this many points (12 x 12 m) before the player
     staggerMs      = 40000,          -- one car released every 40 s
-    lookahead      = 3,              -- target this many points ahead (3 x 12 m)
-    reachRadius    = 20.0,           -- advance the target when this close to it
+    lookahead      = 4,              -- target this many points ahead (4 x 12 m)
+    retargetStep   = 2,              -- advance the target by this many points at a time (fewer task restarts)
+    reachRadius    = 28.0,           -- advance the target when this close to it
     stopRange      = 2.0,
     tickMs         = 250,            -- steering tick while cars are up
     stuckMs        = 8000,           -- no movement for this long = put it back on the line
