@@ -182,6 +182,7 @@ local function spawn()
       c.cruise = (pts[idx].v or cfg.cruiseSpeed or 30.0) * c.pace
       c.speed = c.cruise
       c.prog = idx
+      c.lastProg = GetGameTimer()
       c.idx = Practice.NextIndex(idx, n, Practice.AimByCurvature(pts, idx, n, cfg.aimCornerPts or 2, cfg.aimMinPts or 4, cfg.aimMaxTurnDeg or 15, L.closed))
       cars[#cars + 1] = c
       driveTo(c)
@@ -223,7 +224,7 @@ startSteering = function()
               placeOnLine(c, c.pts[1]); c.prog = 1; c.idx = Practice.NextIndex(1, c.n, cfg.aimMinPts or 4); driveTo(c)
               break
             end
-            if Practice.Dist2D(pos, c.pts[nxt]) < Practice.Dist2D(pos, c.pts[c.prog]) then c.prog = nxt else break end
+            if Practice.Dist2D(pos, c.pts[nxt]) < Practice.Dist2D(pos, c.pts[c.prog]) then c.prog = nxt; c.lastProg = now else break end
           end
           -- pace for this stretch of line: its speed profile x this car's pace factor
           c.cruise = (c.pts[c.prog].v or cfg.cruiseSpeed or 30.0) * c.pace
@@ -255,7 +256,9 @@ startSteering = function()
           end
           if GetEntitySpeed(c.veh) > 1.0 then
             c.lastMove = now
-          elseif now - c.lastMove > (cfg.stuckMs or 6000) then
+          end
+          local noProgress = now - (c.lastProg or c.lastMove) > (cfg.noProgressMs or 10000)
+          if now - c.lastMove > (cfg.stuckMs or 6000) or noProgress then
             -- Stuck: back onto the line at the car's own progress point. Stuck again within
             -- a few points of the same place: skip well past it so it stops re-running the wall.
             local at = c.prog
@@ -265,6 +268,7 @@ startSteering = function()
             end
             c.stuckAt = c.prog
             c.prog = at
+            c.lastProg = now
             c.idx = Practice.NextIndex(at, c.n, cfg.aimCornerPts or 2)
             placeOnLine(c, c.pts[at])
             c.lastMove = now
