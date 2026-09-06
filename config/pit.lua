@@ -40,6 +40,7 @@ Config.PitCrewModels = {
     's_m_y_airworker',     -- vanilla ground crew, hi-vis + ear defenders
     'a_m_y_motox_01',      -- vanilla race suit
     'a_m_y_motox_02',      -- vanilla race suit
+    's_m_y_construct_01',  -- the original crew look, kept as one of ten so a box gets one or two
 }
 
 Config.PitCrewIdleOffsets = {
