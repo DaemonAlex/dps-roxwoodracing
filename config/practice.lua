@@ -9,8 +9,8 @@ Config.Practice = {
     maxPoints     = 2000,   -- recording stops itself at this many points
     closeRadius   = 40.0,   -- end within this distance of the start = closed loop
     -- Smoothing applied when the line is served to clients (the recording stays raw):
-    smoothRadius  = 2,      -- average each point with this many neighbours either side
-    smoothPasses  = 2,
+    smoothRadius  = 3,      -- average each point with this many neighbours either side
+    smoothPasses  = 3,
 }
 
 --- AI PRACTICE CARS
@@ -31,15 +31,15 @@ Config.Practice.ai = {
     cruiseSpeed    = 30.0,           -- m/s fallback when a line has no speed profile
     -- Speed profile from the line's shape (m/s): straights run topSpeed, a bend of
     -- fullTurnDeg or more over ~36 m runs cornerSpeed, braking starts brakePoints early
-    topSpeed       = 42.0,           -- ~150 km/h
-    cornerSpeed    = 12.0,           -- ~43 km/h
-    brakePoints    = 6,              -- points (5 x 12 m) before a corner to start slowing
+    topSpeed       = 60.0,           -- ~216 km/h
+    cornerSpeed    = 18.0,           -- ~65 km/h
+    brakePoints    = 8,              -- points (5 x 12 m) before a corner to start slowing
     fullTurnDeg    = 35,
     releaseBehind  = 12,             -- release point: this many points (12 x 12 m) before the player
     staggerMs      = 40000,          -- one car released every 40 s
-    lookahead      = 4,              -- target this many points ahead (4 x 12 m)
-    retargetStep   = 2,              -- advance the target by this many points at a time (fewer task restarts)
-    reachRadius    = 28.0,           -- advance the target when this close to it
+    lookahead      = 6,              -- target this many points ahead (6 x 12 m)
+    retargetStep   = 3,              -- advance the target by this many points at a time (fewer task restarts)
+    reachRadius    = 40.0,           -- advance the target when this close to it
     stopRange      = 2.0,
     tickMs         = 250,            -- steering tick while cars are up
     stuckMs        = 8000,           -- no movement for this long = put it back on the line
@@ -52,6 +52,7 @@ Config.Practice.ai = {
         lateral        = 6.0,        -- metres either side that counts as "in my way"
         minSpeed       = 9.0,        -- never crawl slower than this behind someone
         overtakeOffset = 3.5,        -- aim this far to the free side to pass
+        passWithin     = 25.0,       -- only start the pass move when the car ahead is this close
     },
     -- 1 stop for cars, 4 swerve cars, 8 steer round stationary cars, 16 steer round peds, 32 steer round
     -- objects, 512 may drive into oncoming, 134217728 force straight line (no road nodes)

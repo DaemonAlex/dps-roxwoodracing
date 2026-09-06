@@ -64,7 +64,10 @@ function Practice.Decide(cruise, blockers, aware)
   end
   if not best then return cruise, 0.0 end
   local speed = math.max(aware.minSpeed, cruise * (best.ahead / aware.range))
-  local offset = best.lateral >= 0 and -aware.overtakeOffset or aware.overtakeOffset
+  local offset = 0.0
+  if best.ahead <= (aware.passWithin or aware.range) then
+    offset = best.lateral >= 0 and -aware.overtakeOffset or aware.overtakeOffset
+  end
   return speed, offset
 end
 
