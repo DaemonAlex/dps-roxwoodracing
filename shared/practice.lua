@@ -148,3 +148,44 @@ function Practice.AimByChord(pts, pos, prog, n, minPts, maxPts, maxCut, closed)
   end
   return best
 end
+
+--- Sign-friendly name: first word, upper-case alphanumerics, at most 5 characters.
+function Practice.ShortName(name)
+  name = tostring(name or ''):match('^%s*(%S+)') or ''
+  name = name:upper():gsub('[^A-Z0-9]', '')
+  if #name == 0 then name = 'PLYR' end
+  return name:sub(1, 5)
+end
+
+--- Rolling average of the last `keep` laps. Returns the new list and its average (ms).
+function Practice.RollingAvg(recent, ms, keep)
+  local out = {}
+  for _, v in ipairs(recent or {}) do out[#out + 1] = v end
+  if ms then out[#out + 1] = ms end
+  while #out > (keep or 5) do table.remove(out, 1) end
+  if #out == 0 then return out, nil end
+  local sum = 0
+  for _, v in ipairs(out) do sum = sum + v end
+  return out, math.floor(sum / #out)
+end
+
+--- AI pace multiplier so the grid laps a little quicker than the target lap.
+--- aiLapMs was measured while running at aiMult (lap time scales ~1/mult).
+function Practice.PaceMult(aiLapMs, aiMult, targetLapMs, margin, minMult, maxMult)
+  if not aiLapMs or aiLapMs <= 0 or not targetLapMs or targetLapMs <= 0 then return nil end
+  local baseLap = aiLapMs * (aiMult or 1.0)          -- lap at full pace
+  local wanted = targetLapMs * (1 - (margin or 0.03))
+  local mult = baseLap / wanted
+  if mult < (minMult or 0.75) then mult = minMult or 0.75 end
+  if mult > (maxMult or 1.05) then mult = maxMult or 1.05 end
+  return mult
+end
+
+--- Lap-clock formatting: m:ss.mmm
+function Practice.FormatMs(ms)
+  ms = math.max(0, math.floor(ms or 0))
+  local m = math.floor(ms / 60000)
+  local s = math.floor((ms % 60000) / 1000)
+  local r = ms % 1000
+  return ('%d:%02d.%03d'):format(m, s, r)
+end

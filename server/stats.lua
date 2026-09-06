@@ -26,6 +26,9 @@ function Stats.Migrate()
     )]]):format(Stats.TABLE))
   MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS spec_wins INT DEFAULT 0'):format(Stats.TABLE))
   MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS open_wins INT DEFAULT 0'):format(Stats.TABLE))
+  MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS practice_best_ms INT DEFAULT NULL'):format(Stats.TABLE))
+  MySQL.query.await(('ALTER TABLE %s ADD COLUMN IF NOT EXISTS practice_laps INT DEFAULT 0'):format(Stats.TABLE))
+  MySQL.query.await(("ALTER TABLE %s ADD COLUMN IF NOT EXISTS practice_recent VARCHAR(255) DEFAULT '[]'"):format(Stats.TABLE))
   print('[dps-roxwoodracing] stats: table ready')
 end
 
@@ -69,6 +72,32 @@ function Stats.Save(pid, position, track, bestLap, earnings, mode)
       wins = prevWins + isWin, totalRaces = prevRaces + 1, bestLap = bestLaps[track], newRecord = newRecord and bestLap or nil,
     })
   end
+end
+
+--- Rolling practice average for a citizen (ms) or nil.
+function Stats.PracticeAvg(cid)
+  local row = MySQL.single.await(('SELECT practice_recent FROM %s WHERE citizenid = ?'):format(Stats.TABLE), { cid })
+  if not row then return nil end
+  local recent = json.decode(row.practice_recent or '[]') or {}
+  if #recent == 0 then return nil end
+  local _, avg = Practice.RollingAvg(recent, nil, #recent + 1)
+  return avg
+end
+
+--- Record a practice lap. Returns best (ms), avg (ms), isNewBest, laps.
+function Stats.SavePracticeLap(cid, ms, keep)
+  local row = MySQL.single.await(('SELECT practice_best_ms, practice_laps, practice_recent FROM %s WHERE citizenid = ?'):format(Stats.TABLE), { cid })
+  local recent = row and (json.decode(row.practice_recent or '[]') or {}) or {}
+  local newRecent, avg = Practice.RollingAvg(recent, ms, keep or 5)
+  local prevBest = row and row.practice_best_ms or nil
+  local isBest = (not prevBest) or ms < prevBest
+  local best = isBest and ms or prevBest
+  local laps = ((row and row.practice_laps) or 0) + 1
+  MySQL.query.await(([[
+    INSERT INTO %s (citizenid, practice_best_ms, practice_laps, practice_recent) VALUES (?, ?, 1, ?)
+    ON DUPLICATE KEY UPDATE practice_best_ms = ?, practice_laps = practice_laps + 1, practice_recent = ?]]):format(Stats.TABLE),
+    { cid, best, json.encode(newRecent), best, json.encode(newRecent) })
+  return best, avg, isBest, laps
 end
 
 lib.callback.register('dps-roxwoodracing:getPlayerStats', function(source)

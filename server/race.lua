@@ -149,9 +149,18 @@ end
 
 -- AI practice cars may run only while no race is live (clients read the global state).
 local function SyncPracticeState()
-  local live = false
-  for _, l in pairs(lobbies) do if l.raceLive then live = true break end end
+  local live, inLobby = false, {}
+  for _, l in pairs(lobbies) do
+    if l.raceLive then
+      live = true
+      for _, pid in ipairs(l.players) do inLobby[pid] = true end
+    end
+  end
+  local wasAllowed = GlobalState.rwPracticeAllowed
   GlobalState.rwPracticeAllowed = not live
+  if live and wasAllowed ~= false and PracticeServer and PracticeServer.ClearTrack then
+    PracticeServer.ClearTrack(inLobby)   -- race just went live: practice cars off the track
+  end
 end
 GlobalState.rwPracticeAllowed = true
 
@@ -257,6 +266,7 @@ RegisterNetEvent("dps-roxwoodracing:createLobby", function(args)
   lobbies[c.name].prizePool = receipt and receipt.amount or 0
   if Config.DebugPrints then print("[DEBUG] Lobby created: " .. c.name .. " mode=" .. c.mode) end
   ServerNotify(src, Config.Job.label, Locale("lobby_created", c.name), 'success')
+  if PracticeServer and PracticeServer.RaceForming then PracticeServer.RaceForming(c.name) end
   TriggerClientEvent('dps-roxwoodracing:updateLobbyInfo', src, buildLobbyInfo(c.name, lobbies[c.name]))
   TriggerClientEvent('dps-roxwoodracing:setLobbyState', -1, next(lobbies) ~= nil)
 end)
