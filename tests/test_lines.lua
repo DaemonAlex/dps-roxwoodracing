@@ -58,3 +58,14 @@ TEST('Lines.Vary drifts within the amplitude, keeps the count, and differs by se
   TRUTHY(diff > 0.5, 'variants differ: ' .. diff)
   TRUTHY(v1[10].h, 'heading set')
 end)
+TEST('Lines.SpeedProfile: fast on the straight, slow in the corner, brakes before it', function()
+  local pts = {}
+  for i = 1, 20 do pts[i] = { x = i * 12.0, y = 0.0, z = 0 } end            -- straight east
+  for i = 21, 40 do pts[i] = { x = 240.0, y = (i - 20) * 12.0, z = 0 } end   -- 90-degree turn north
+  Lines.SpeedProfile(pts, false, 48.0, 14.0, 5, 45)
+  EQ(pts[5].v, 48.0)                                     -- deep in the straight
+  TRUTHY(pts[20].v <= 14.0 + 0.01, 'corner entry ' .. pts[20].v)
+  TRUTHY(pts[14].v <= 14.0 + 0.01, 'braking 5 points early ' .. pts[14].v)
+  EQ(pts[8].v, 48.0)                                     -- not yet braking
+  TRUTHY(pts[35].v > 40.0, 'straight again after the corner ' .. pts[35].v)
+end)

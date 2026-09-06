@@ -73,6 +73,9 @@ lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
           set[#set + 1] = { name = ('%s#%d'):format(name, k), closed = closed,
             pts = Lines.Vary(pts, k * 7919 + #pts, ai.varyAmplitude or 2.5, closed) }
         end
+        for _, L in ipairs(set) do
+          Lines.SpeedProfile(L.pts, closed, ai.topSpeed or 48.0, ai.cornerSpeed or 14.0, ai.brakePoints or 5, ai.fullTurnDeg or 45)
+        end
         cache[name] = set
       end
     end

@@ -27,7 +27,13 @@ Config.Practice.ai = {
     models         = { 'openwheel1', 'openwheel2', 'formula', 'formula2' },
     driverModel    = 'a_m_y_motox_01',
     spawnDistance  = 300.0,          -- metres beyond the line's extent that counts as "near"
-    cruiseSpeed    = 30.0,           -- m/s (~108 km/h)
+    cruiseSpeed    = 30.0,           -- m/s fallback when a line has no speed profile
+    -- Speed profile from the line's shape (m/s): straights run topSpeed, a bend of
+    -- fullTurnDeg or more over ~36 m runs cornerSpeed, braking starts brakePoints early
+    topSpeed       = 48.0,           -- ~173 km/h
+    cornerSpeed    = 14.0,           -- ~50 km/h
+    brakePoints    = 5,              -- points (5 x 12 m) before a corner to start slowing
+    fullTurnDeg    = 45,
     releaseBehind  = 12,             -- release point: this many points (12 x 12 m) before the player
     staggerMs      = 30000,          -- one car released every 30 s
     lookahead      = 3,              -- target this many points ahead (3 x 12 m)

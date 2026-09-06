@@ -161,8 +161,9 @@ local function spawn()
         veh = veh, ped = ped, slot = i, line = L.name, pts = pts, n = n, closed = L.closed,
         lastMove = GetGameTimer(), offset = 0.0,
         bias = -j + 2 * j * math.random(),
-        cruise = (cfg.cruiseSpeed or 30.0) * (1 - v + 2 * v * math.random()),
+        pace = 1 - v + 2 * v * math.random(),
       }
+      c.cruise = (pts[idx].v or cfg.cruiseSpeed or 30.0) * c.pace
       c.speed = c.cruise
       c.idx = Practice.NextIndex(idx, n, cfg.lookahead or 3)
       cars[#cars + 1] = c
@@ -197,6 +198,8 @@ startSteering = function()
       if mine ~= 0 then others[#others + 1] = mine end
       for _, c in ipairs(cars) do
         if DoesEntityExist(c.veh) and DoesEntityExist(c.ped) then
+          -- pace for this stretch of line: its speed profile x this car's pace factor
+          c.cruise = (c.pts[c.idx].v or cfg.cruiseSpeed or 30.0) * c.pace
           raceLogic(c, others)
           local pos = GetEntityCoords(c.veh)
           if Practice.Dist2D(pos, c.pts[c.idx]) <= (cfg.reachRadius or 20.0) then

@@ -97,3 +97,36 @@ function Lines.Vary(pts, seed, amplitude, closed)
   end
   return Lines.Smooth(out, 1, 1, closed)
 end
+
+--- Per-point target speed (m/s) written to pts[i].v: vmax on straights, down to vmin
+--- where the line turns by `fullTurnDeg` or more over the next three points (~36 m),
+--- then each point takes the minimum of the next `brakePts` points so braking starts
+--- before the corner. Modifies pts in place and returns it.
+function Lines.SpeedProfile(pts, closed, vmax, vmin, brakePts, fullTurnDeg)
+  local n = #pts
+  if n < 4 then for i = 1, n do pts[i].v = vmax end return pts end
+  local function wrap(i) if i > n then return closed and (i - n) or n end return i end
+  local function dir(i)
+    local a, b = pts[i], pts[wrap(i + 1)]
+    return math.atan(b.y - a.y, b.x - a.x)
+  end
+  local full = math.rad(fullTurnDeg or 45)
+  local raw = {}
+  for i = 1, n do
+    local a1, a2 = dir(i), dir(wrap(i + 3))
+    local d = math.abs(a2 - a1)
+    if d > math.pi then d = 2 * math.pi - d end
+    local f = math.min(1.0, d / full)
+    raw[i] = vmax - (vmax - vmin) * f
+  end
+  for i = 1, n do
+    local v = raw[i]
+    for k = 1, (brakePts or 4) do
+      local j = i + k
+      if j > n then if closed then j = j - n else break end end
+      if raw[j] < v then v = raw[j] end
+    end
+    pts[i].v = v
+  end
+  return pts
+end
