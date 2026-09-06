@@ -24,10 +24,12 @@ local function num(v) return type(v) == 'number' and v == v and math.abs(v) < 1e
 RegisterNetEvent('dps-roxwoodracing:pitcar:add', function(model, x, y, z, h)
   local src = source
   if not Staff.Can(src, 'director') then
+    print(('[dps-roxwoodracing] pit car refused: %s is not a director'):format(src))
     TriggerClientEvent('dps-roxwoodracing:pitcar:result', src, false, Locale('staff_only')) return
   end
   if type(model) ~= 'string' or not model:match('^[a-z0-9_]+$') or #model > 40
     or not (num(x) and num(y) and num(z) and num(h)) then
+    print(('[dps-roxwoodracing] pit car refused: bad payload model=%s x=%s y=%s z=%s h=%s'):format(tostring(model), tostring(x), tostring(y), tostring(z), tostring(h)))
     TriggerClientEvent('dps-roxwoodracing:pitcar:result', src, false, Locale('pitcar_invalid')) return
   end
   MySQL.insert.await(('INSERT INTO %s (model, x, y, z, h, citizenid) VALUES (?, ?, ?, ?, ?, ?)'):format(TABLE),
