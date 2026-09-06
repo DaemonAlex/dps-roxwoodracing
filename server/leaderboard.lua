@@ -12,7 +12,7 @@ if not Config.Leaderboard or not Config.Leaderboard.enabled then return end
 local CurrentDisplayType = "setText"
 local CurrentDisplayTitle = ""
 local CurrentDisplayLines = {}
-local CurrentDisplayAdUrls = { "ads/ad_2.png", "ads/ad_3.png", "ads/ad_4.png" }
+local CurrentDisplayAdUrls = Config.Leaderboard.adUrls or { "ads/dps_1.png", "ads/dps_2.png", "ads/dps_3.png" }
 
 --------------------------------------------------------------------------------
 -- Core display functions (same API as original amir-leaderboard)
