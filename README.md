@@ -36,6 +36,7 @@ Version 3.0.0. Descended from [max_rox_speedway](https://github.com/MaxSuperTech
 - **Ghosting.** Everyone is ghosted at GO until all racers pass the first checkpoint (or a timer runs out). Racers a full lap behind the leader are ghosted so they cannot block.
 - **Results.** A results overlay with positions, total and best lap times, payouts, gold/silver/bronze styling, "fastest lap" and "most improved" badges, and a note when the purse could not be paid.
 - **Persistent stats.** Wins, podiums, races, earnings, spec and open wins, best lap per layout. `/racestats`.
+- **Practice lines.** A Race Director records the racing line once with `/recordline <name>` (drive one easy lap, run it again to save; points every 12 m, stored in `dps_roxwoodracing_lines`). Lines drive the AI practice cars.
 - **LED sign.** A physical leaderboard at the raceway: live positions during a race, best-ever times when idle, refreshed when a record falls. The three ad panels show the DPS sponsor slides in `html/ads/` (`Config.Leaderboard.adUrls`); the texture replacement is re-applied whenever a player comes within `signRadius` of `signCoords`.
 - **Staff.** Marshals end stuck races, clear props and switch the sign; Race Directors set fees and purse; the Owner has the boss menu and bank access.
 
