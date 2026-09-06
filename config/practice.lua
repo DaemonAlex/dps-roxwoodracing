@@ -42,6 +42,9 @@ Config.Practice.ai = {
         aBrake = 24.0,               -- braking (~2.4 g)
         aAccel = 12.0,               -- acceleration out of corners
     },
+    releaseBehind  = 35,             -- release point: this many points (35 x 12 m = 420 m) before the player
+    releaseSpeed   = 30.0,           -- rolling start (m/s) so cars arrive at pace
+    staggerMs      = 35000,          -- one car released every 35 s
     -- Aim point: `aimSeconds` of travel ahead of the car's progress on the line, clamped to
     -- aimMinPts..aimMaxPts points (12 m each). Re-issued when it moves retargetStep points.
     aimSeconds     = 2.0,

@@ -187,6 +187,7 @@ local function spawn()
       cars[#cars + 1] = c
       driveTo(c)
       c.lastTask = GetGameTimer()
+      if (cfg.releaseSpeed or 0) > 0 then SetVehicleForwardSpeed(veh, cfg.releaseSpeed) end
       SetModelAsNoLongerNeeded(hash)
     else
       log(('model %s failed to load, skipped'):format(tostring(models[i])))
