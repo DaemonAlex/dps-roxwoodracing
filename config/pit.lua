@@ -27,7 +27,20 @@ Config.PitCrewZones = {
 
 
 -- Pit-crew settings
-Config.PitCrewModel       = 'ig_mechanic_01'  -- ped model for all pit crew
+-- Ped models for the crew. Each crew member picks one at random and gets a random
+-- outfit variation, so the boxes are not staffed by identical clones. Models that are
+-- not present on the client are skipped; if none load, s_m_y_xmech_02 is used.
+Config.PitCrewModels = {
+    'ig_mechanic_ped_1',   -- addon (ghostic) mechanic, present on DPS
+    'ig_mechanic_ped_2',   -- addon (ghostic) mechanic, present on DPS
+    's_m_y_xmech_01',      -- vanilla mechanic, coveralls
+    's_m_y_xmech_02',      -- vanilla mechanic, coveralls
+    's_m_m_autoshop_01',   -- vanilla LS Customs mechanic
+    's_m_m_autoshop_02',   -- vanilla LS Customs mechanic
+    's_m_y_airworker',     -- vanilla ground crew, hi-vis + ear defenders
+    'a_m_y_motox_01',      -- vanilla race suit
+    'a_m_y_motox_02',      -- vanilla race suit
+}
 
 Config.PitCrewIdleOffsets = {
     vector3(-2.0,  0.0,  0.0),  -- two idle spots (left/right)

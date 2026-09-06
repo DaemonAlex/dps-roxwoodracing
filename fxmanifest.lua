@@ -51,7 +51,7 @@ files {
   'locales/en.lua',
   'html/index.html',
   'html/led.html',
-  'html/LCDMB___.TTF',
+  'html/BarlowCondensed-Bold.ttf',
   'html/ads/*.png',
 }
 
