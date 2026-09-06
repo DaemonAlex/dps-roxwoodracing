@@ -10,3 +10,8 @@ TEST('Practice.Extent finds the centre and reach of a line', function()
   local c, r = Practice.Extent(pts)
   EQ(c.x, 50.0); EQ(c.y, 50.0); TRUTHY(math.abs(r - 70.71) < 0.1, 'radius')
 end)
+TEST('Practice.NearestIndex picks the closest point', function()
+  local pts = { {x=0,y=0,z=0}, {x=100,y=0,z=0}, {x=200,y=0,z=0} }
+  EQ(Practice.NearestIndex(pts, {x=90,y=5,z=0}), 2)
+  EQ(Practice.NearestIndex(pts, {x=-50,y=0,z=0}), 1)
+end)

@@ -23,6 +23,7 @@ Config.Practice.ai = {
     driverModel    = 'a_m_y_motox_01',
     spawnDistance  = 300.0,          -- metres beyond the line's extent that counts as "near"
     cruiseSpeed    = 30.0,           -- m/s (~108 km/h)
+    gridSpacing    = 4,              -- points between grid cars at spawn (4 x 12 m)
     lookahead      = 3,              -- target this many points ahead (3 x 12 m)
     reachRadius    = 20.0,           -- advance the target when this close to it
     stopRange      = 2.0,

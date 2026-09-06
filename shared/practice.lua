@@ -26,3 +26,13 @@ function Practice.Extent(pts)
   for i = 1, n do local d = Practice.Dist2D(c, pts[i]); if d > r then r = d end end
   return c, r
 end
+
+--- Index of the line point closest (2D) to pos.
+function Practice.NearestIndex(pts, pos)
+  local best, bestD = 1, math.huge
+  for i = 1, #pts do
+    local d = Practice.Dist2D(pos, pts[i])
+    if d < bestD then best, bestD = i, d end
+  end
+  return best
+end

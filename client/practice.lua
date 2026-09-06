@@ -10,6 +10,7 @@ local line, lineClosed = nil, false
 local trackPoint
 
 local function log(msg) print('[dps-roxwoodracing] practice: ' .. msg) end
+local DRIVE_TASK = 0x93A5526E  -- SCRIPT_TASK_VEHICLE_DRIVE_TO_COORD
 
 local function allowed()
   local g = GlobalState.rwPracticeAllowed
@@ -86,14 +87,21 @@ local function spawn()
   local driverHash = loadModel(joaat(cfg.driverModel or 'a_m_y_motox_01'), 5000)
   if not driverHash then log('driver model failed to load') running = false return end
 
+  -- Grid forms on the line nearest the player (cars far outside streaming range never
+  -- get collision, and a drive task on a frozen car does nothing).
+  local me = GetEntityCoords(PlayerPedId())
+  local nearest = Practice.NearestIndex(pts, me)
   for i = 1, (cfg.cars or 4) do
     if not running then break end
-    local idx = Practice.StartIndex(i, n, cfg.cars or 4)
+    local idx = Practice.NextIndex(nearest, n, (i - 1) * (cfg.gridSpacing or 4))
     local pt = pts[idx]
     local hash = loadModel(joaat(models[i]), 8000)
     if hash then
+      RequestCollisionAtCoord(pt.x, pt.y, pt.z)
       local veh = CreateVehicle(hash, pt.x, pt.y, pt.z + 0.5, pt.h or 0.0, false, false)
       SetEntityAsMissionEntity(veh, true, true)
+      local deadline = GetGameTimer() + 3000
+      while not HasCollisionLoadedAroundEntity(veh) and GetGameTimer() < deadline do Wait(50) end
       SetVehicleOnGroundProperly(veh)
       -- Distinct colour per car, random livery where the model has them
       local col = palette[((i - 1) % #palette) + 1]
@@ -114,7 +122,7 @@ local function spawn()
       SetDriverAbility(ped, 1.0)
       SetDriverAggressiveness(ped, cfg.aggressiveness or 0.4)
       SetPedKeepTask(ped, true)
-      local c = { veh = veh, ped = ped, idx = idx, lastMove = GetGameTimer() }
+      local c = { veh = veh, ped = ped, idx = idx, lastMove = GetGameTimer(), slot = i }
       c.idx = Practice.NextIndex(idx, n, cfg.lookahead or 3)
       cars[#cars + 1] = c
       driveTo(c, pts[c.idx])
@@ -139,6 +147,16 @@ local function spawn()
             c.idx = nxt
             if wrapped and not lineClosed then placeOnLine(c, pts[1]); c.idx = Practice.NextIndex(1, n, cfg.lookahead or 3) end
             driveTo(c, pts[c.idx])
+          end
+          local status = GetScriptTaskStatus(c.ped, DRIVE_TASK)
+          if status ~= 0 and status ~= 1 then
+            driveTo(c, pts[c.idx])
+            c.retasks = (c.retasks or 0) + 1
+          end
+          if not c.logged and now - c.lastMove > 3000 then
+            c.logged = true
+            log(('car %d: task status %d, speed %.1f, collision %s, retasks %d'):format(
+              c.slot, status, GetEntitySpeed(c.veh), tostring(HasCollisionLoadedAroundEntity(c.veh)), c.retasks or 0))
           end
           if GetEntitySpeed(c.veh) > 1.0 then
             c.lastMove = now
