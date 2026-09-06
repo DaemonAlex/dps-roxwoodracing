@@ -127,6 +127,20 @@ local function spawn()
       RequestCollisionAtCoord(pt.x, pt.y, pt.z)
       local net = cfg.networked ~= false
       local veh = CreateVehicle(hash, pt.x, pt.y, pt.z + 0.5, pt.h or 0.0, net, false)
+      if veh == 0 then
+        -- The game refused the spawn (unloaded area or something in the way): one retry a
+        -- point further on, after a short wait.
+        log(('car %d: spawn refused at %.1f %.1f %.1f, retrying'):format(i, pt.x, pt.y, pt.z))
+        Wait(500)
+        idx = Practice.NextIndex(idx, n, 1); pt = pts[idx]
+        RequestCollisionAtCoord(pt.x, pt.y, pt.z)
+        veh = CreateVehicle(hash, pt.x, pt.y, pt.z + 0.5, pt.h or 0.0, net, false)
+      end
+      if veh == 0 then
+        log(('car %d: spawn refused twice, skipped'):format(i))
+        SetModelAsNoLongerNeeded(hash)
+        goto continue
+      end
       SetEntityAsMissionEntity(veh, true, true)
       if net then
         local netId = NetworkGetNetworkIdFromEntity(veh)
@@ -202,6 +216,7 @@ local function spawn()
     else
       log(('model %s failed to load, skipped'):format(tostring(models[i])))
     end
+    ::continue::
     if i == 1 then
       log(('releasing %d cars over %d line(s), one every %d s; first line "%s" %d points closed=%s'):format(
         count, #all, math.floor((cfg.staggerMs or 30000) / 1000), tostring(all[1].name), #all[1].pts, tostring(all[1].closed)))
