@@ -176,7 +176,7 @@ local function spawn()
       c.cruise = (pts[idx].v or cfg.cruiseSpeed or 30.0) * c.pace
       c.speed = c.cruise
       c.prog = idx
-      c.idx = Practice.NextIndex(idx, n, cfg.aimMinPts or 4)
+      c.idx = Practice.NextIndex(idx, n, Practice.AimByCurvature(pts, idx, n, cfg.aimCornerPts or 2, cfg.aimMinPts or 4, cfg.aimMaxTurnDeg or 15, L.closed))
       cars[#cars + 1] = c
       driveTo(c)
       c.lastTask = GetGameTimer()
@@ -225,6 +225,9 @@ startSteering = function()
           -- Aim point scales with speed so the car never overshoots its own target.
           local aim = Practice.AimPoints(GetEntitySpeed(c.veh), cfg.aimSeconds or 2.0, Config.Practice.recordSpacing or 12.0,
             cfg.aimMinPts or 4, cfg.aimMaxPts or 14)
+          -- ...but never past a bend: a straight aim through a corner ends in the wall.
+          local curv = Practice.AimByCurvature(c.pts, c.prog, c.n, cfg.aimCornerPts or 2, cfg.aimMaxPts or 14, cfg.aimMaxTurnDeg or 15, c.closed)
+          if curv < aim then aim = curv end
           local want = Practice.NextIndex(c.prog, c.n, aim)
           if Practice.Forward(c.idx, want, c.n) >= (cfg.retargetStep or 2) then
             c.idx = want

@@ -53,3 +53,13 @@ TEST('Practice.AimPoints scales with speed and clamps; Forward is circular', fun
   EQ(Practice.Forward(5, 340, 348), 335)
   EQ(Practice.Forward(7, 7, 348), 0)
 end)
+TEST('Practice.AimByCurvature aims far on a straight and short into a bend', function()
+  local pts = {}
+  for i = 1, 30 do pts[i] = { x = i, y = 0, z = 0, h = (i <= 20) and 270.0 or (270.0 + (i - 20) * 10.0) } end
+  EQ(Practice.AimByCurvature(pts, 1, 30, 2, 14, 15, false), 14)     -- straight: full aim
+  EQ(Practice.AimByCurvature(pts, 18, 30, 2, 14, 15, false), 3)     -- 21 is +10, 22 is +20 > 15
+  EQ(Practice.AimByCurvature(pts, 24, 30, 2, 14, 15, false), 2)     -- inside the bend: floor
+  local ring = {}
+  for i = 1, 36 do ring[i] = { x = 0, y = 0, z = 0, h = (i - 1) * 10.0 } end
+  EQ(Practice.AimByCurvature(ring, 35, 36, 2, 14, 15, true), 2)     -- wraps and stays short
+end)

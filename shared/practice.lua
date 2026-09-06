@@ -95,3 +95,21 @@ function Practice.Forward(a, b, n)
   if d < 0 then d = d + n end
   return d
 end
+
+--- Points ahead of `prog` before the line's heading has turned more than `maxTurnDeg`
+--- from the heading at prog (uses pts[i].h). At least minPts, at most maxPts.
+function Practice.AimByCurvature(pts, prog, n, minPts, maxPts, maxTurnDeg, closed)
+  local h0 = pts[prog].h
+  if not h0 then return maxPts end
+  local count = 0
+  for k = 1, maxPts do
+    local j = prog + k
+    if j > n then if closed then j = j - n else break end end
+    local d = math.abs((pts[j].h or h0) - h0) % 360.0
+    if d > 180.0 then d = 360.0 - d end
+    if d > maxTurnDeg then break end
+    count = k
+  end
+  if count < minPts then return minPts end
+  return count
+end
