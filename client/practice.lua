@@ -149,6 +149,9 @@ local function spawn()
       if cfg.engineSounds and #cfg.engineSounds > 0 then
         ForceVehicleEngineAudio(veh, cfg.engineSounds[math.random(#cfg.engineSounds)])
       end
+      -- Audio LOD hint: HIGH keeps the full engine bank active at range and out of view
+      -- (MAX would fight the game's 5-granular-engine limit with six cars).
+      SetAudioVehiclePriority(veh, cfg.audioPriority or 3)
       SetVehicleEngineOn(veh, true, true, true)
       SetVehicleCanBeVisiblyDamaged(veh, false)
       SetVehicleEngineCanDegrade(veh, false)
@@ -163,6 +166,9 @@ local function spawn()
       SetDriverAggressiveness(ped, cfg.aggressiveness or 0.6)
       SetDriverRacingModifier(ped, 1.0)
       SetPedKeepTask(ped, true)
+      -- Full-face helmet: the model's default helmet (motocross lid on the motox peds)
+      GivePedHelmet(ped, true, 4096, -1)
+      SetPedHelmet(ped, true)
       FreezeEntityPosition(veh, false)
       FreezeEntityPosition(ped, false)
       local v = cfg.paceVariance or 0.08

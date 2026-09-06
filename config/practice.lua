@@ -29,6 +29,7 @@ Config.Practice.ai = {
     driverModel    = 'a_m_y_motox_01',
     -- Engine audio names streamed by dps-enginesounds; each car takes a random one.
     -- nil = keep the model's own sound.
+    audioPriority  = 3,              -- SetAudioVehiclePriority: 0 normal, 1 medium, 3 high, 2 max (max starves other cars)
     engineSounds   = { 'honf1v6eng', 'lg115classicf1v10', 'frf119eng', 'lg59hurv10', 'lambov10', 'lg48lexlfa' },
     spawnDistance  = 300.0,          -- metres beyond the line's extent that counts as "near"
     cruiseSpeed    = 30.0,           -- m/s fallback when a line has no speed profile
