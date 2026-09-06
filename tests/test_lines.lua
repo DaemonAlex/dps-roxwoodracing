@@ -1,9 +1,16 @@
 dofile('shared/lines.lua')
 local cfg = { recordSpacing = 12.0, minPoints = 10, maxPoints = 50, closeRadius = 40.0 }
+-- closed: n points around a circle (ends next to its start); open: a straight line
 local function lap(n, close)
   local pts = {}
-  for i = 1, n do pts[i] = { x = i * 10.0, y = 0.0, z = 30.0, h = 90.0 } end
-  if close then pts[n] = { x = 5.0, y = 5.0, z = 30.0 } end
+  for i = 1, n do
+    if close then
+      local a = (i - 1) / n * 2 * math.pi
+      pts[i] = { x = 100.0 * math.cos(a), y = 100.0 * math.sin(a), z = 30.0, h = 0.0 }
+    else
+      pts[i] = { x = i * 10.0, y = 0.0, z = 30.0, h = 90.0 }
+    end
+  end
   return pts
 end
 TEST('Lines.Validate accepts a lap and reports closure', function()
