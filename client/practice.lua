@@ -175,9 +175,15 @@ local function spawn()
       if ped == 0 then
         -- Seating at create time can be refused for a far, freshly networked vehicle:
         -- create the driver beside the car and seat it instead.
-        log(('car %d: in-vehicle driver create refused, seating a ped instead'):format(i))
         local vc = GetEntityCoords(veh)
+        log(('car %d: in-vehicle driver create refused (model loaded=%s, dist to player %.0f m, networked=%s), seating a ped instead'):format(
+          i, tostring(HasModelLoaded(driverHash)), #(vc - GetEntityCoords(PlayerPedId())), tostring(net)))
+        if not HasModelLoaded(driverHash) then RequestModel(driverHash); local dl = GetGameTimer() + 3000; while not HasModelLoaded(driverHash) and GetGameTimer() < dl do Wait(50) end end
         ped = CreatePed(4, driverHash, vc.x, vc.y, vc.z, pt.h or 0.0, net, false)
+        if ped == 0 then
+          log(('car %d: networked ped create refused too, trying a local ped'):format(i))
+          ped = CreatePed(4, driverHash, vc.x, vc.y, vc.z, pt.h or 0.0, false, false)
+        end
         if ped ~= 0 then
           local seatDeadline = GetGameTimer() + 2000
           SetPedIntoVehicle(ped, veh, -1)
