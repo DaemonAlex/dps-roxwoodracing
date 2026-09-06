@@ -63,8 +63,15 @@ function Practice.Decide(cruise, blockers, aware)
     end
   end
   if not best then return cruise, 0.0 end
-  local speed = math.max(aware.minSpeed, cruise * (best.ahead / aware.range))
-  local offset = best.lateral >= 0 and -aware.overtakeOffset or aware.overtakeOffset
+  -- Racing, not queueing: hold pace and move to the free side to pass; only lift when
+  -- right on the car ahead (closeGap), and then only to a fraction of pace.
+  local speed, offset = cruise, 0.0
+  if best.ahead <= (aware.passWithin or aware.range) then
+    offset = best.lateral >= 0 and -aware.overtakeOffset or aware.overtakeOffset
+  end
+  if best.ahead <= (aware.closeGap or 10.0) then
+    speed = math.max(aware.minSpeed, cruise * (aware.closeFactor or 0.8))
+  end
   return speed, offset
 end
 
@@ -76,4 +83,68 @@ function Practice.OffsetPoint(pts, idx, n, offset)
   if len < 0.01 or offset == 0 then return a.x, a.y, a.z end
   local rx, ry = dy / len, -dx / len
   return a.x + rx * offset, a.y + ry * offset, a.z
+end
+
+--- Aim distance in points for a given speed: `seconds` of travel ahead, clamped.
+function Practice.AimPoints(speed, seconds, spacing, minPts, maxPts)
+  local pts = math.ceil((speed * seconds) / spacing)
+  if pts < minPts then return minPts end
+  if pts > maxPts then return maxPts end
+  return pts
+end
+
+--- Circular forward distance from a to b on an n-point loop (0..n-1).
+function Practice.Forward(a, b, n)
+  local d = b - a
+  if d < 0 then d = d + n end
+  return d
+end
+
+--- Points ahead of `prog` before the line's heading has turned more than `maxTurnDeg`
+--- from the heading at prog (uses pts[i].h). At least minPts, at most maxPts.
+function Practice.AimByCurvature(pts, prog, n, minPts, maxPts, maxTurnDeg, closed)
+  local h0 = pts[prog].h
+  if not h0 then return maxPts end
+  local count = 0
+  for k = 1, maxPts do
+    local j = prog + k
+    if j > n then if closed then j = j - n else break end end
+    local d = math.abs((pts[j].h or h0) - h0) % 360.0
+    if d > 180.0 then d = 360.0 - d end
+    if d > maxTurnDeg then break end
+    count = k
+  end
+  if count < minPts then return minPts end
+  return count
+end
+
+--- Distance (2D) from point p to the segment a-b.
+function Practice.DistToSegment(p, a, b)
+  local vx, vy = b.x - a.x, b.y - a.y
+  local wx, wy = p.x - a.x, p.y - a.y
+  local len2 = vx * vx + vy * vy
+  local t = 0.0
+  if len2 > 0.0001 then t = math.max(0.0, math.min(1.0, (wx * vx + wy * vy) / len2)) end
+  local cx, cy = a.x + t * vx, a.y + t * vy
+  return math.sqrt((p.x - cx) ^ 2 + (p.y - cy) ^ 2)
+end
+
+--- Largest aim (points ahead of prog, minPts..maxPts) such that the straight line from
+--- `pos` to the aim point passes within `maxCut` metres of every line point between.
+--- This is what stops corner cutting: the aim shortens exactly where the line bends away.
+function Practice.AimByChord(pts, pos, prog, n, minPts, maxPts, maxCut, closed)
+  local best = minPts
+  for k = minPts, maxPts do
+    local j = prog + k
+    if j > n then if closed then j = j - n else break end end
+    local ok = true
+    for m = 1, k - 1 do
+      local i = prog + m
+      if i > n then i = i - n end
+      if Practice.DistToSegment(pts[i], pos, pts[j]) > maxCut then ok = false break end
+    end
+    if not ok then break end
+    best = k
+  end
+  return best
 end

@@ -1,4 +1,4 @@
--- /recordline <name>: a Race Director drives one lap; points are sampled every
+-- /recordline <name>: a Race Director drives (or walks) one lap; points are sampled every
 -- Config.Practice.recordSpacing metres and saved server-side. /recordline again stops.
 local recording, points, lineName = false, {}, nil
 
@@ -30,10 +30,6 @@ RegisterCommand('recordline', function(_, args)
     Notify(Config.Job.label, Locale('line_bad_name'), 'error')
     return
   end
-  if GetVehiclePedIsIn(PlayerPedId(), false) == 0 then
-    Notify(Config.Job.label, Locale('line_need_vehicle'), 'error')
-    return
-  end
   lineName, points, recording = name, {}, true
   Notify(Config.Job.label, Locale('line_recording', name), 'inform', 9000)
 
@@ -43,11 +39,14 @@ RegisterCommand('recordline', function(_, args)
     local spacing = Config.Practice.recordSpacing or 12.0
     local maxPoints = Config.Practice.maxPoints or 2000
     while recording do
-      local veh = GetVehiclePedIsIn(PlayerPedId(), false)
-      if veh ~= 0 then
-        local c = GetEntityCoords(veh)
+      -- In a car: sample the car. On foot: sample the ped, so a line can be walked.
+      local ped = PlayerPedId()
+      local ent = GetVehiclePedIsIn(ped, false)
+      if ent == 0 then ent = ped end
+      if ent ~= 0 then
+        local c = GetEntityCoords(ent)
         if not last or #(c - last) >= spacing then
-          points[#points + 1] = { x = c.x, y = c.y, z = c.z, h = GetEntityHeading(veh) }
+          points[#points + 1] = { x = c.x, y = c.y, z = c.z, h = GetEntityHeading(ent) }
           last = c
           if #points % 50 == 0 then Notify(Config.Job.label, Locale('line_progress', #points), 'inform', 2000) end
           if #points >= maxPoints then stopRecording() end

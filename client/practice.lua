@@ -95,12 +95,11 @@ local function raceLogic(c, others)
     end
   end
   local speed, offset = Practice.Decide(c.cruise, blockers, cfg.aware)
-  local changed = math.abs(speed - (c.speed or 0)) > 1.0 or offset ~= (c.offset or 0)
+  local retask = offset ~= (c.offset or 0)          -- a new aim point needs a new task
+  local respeed = math.abs(speed - (c.speed or 0)) > 1.0
   c.speed, c.offset = speed, offset
-  if changed then
-    SetDriveTaskCruiseSpeed(c.ped, speed)
-    driveTo(c)
-  end
+  if retask then driveTo(c)                         -- driveTo carries the speed too
+  elseif respeed then SetDriveTaskCruiseSpeed(c.ped, speed) end   -- adjust the running task, no restart
 end
 
 local function spawn()
@@ -126,8 +125,14 @@ local function spawn()
     local hash = loadModel(joaat(models[i]), 8000)
     if hash then
       RequestCollisionAtCoord(pt.x, pt.y, pt.z)
-      local veh = CreateVehicle(hash, pt.x, pt.y, pt.z + 0.5, pt.h or 0.0, false, false)
+      local net = cfg.networked ~= false
+      local veh = CreateVehicle(hash, pt.x, pt.y, pt.z + 0.5, pt.h or 0.0, net, false)
       SetEntityAsMissionEntity(veh, true, true)
+      if net then
+        local netId = NetworkGetNetworkIdFromEntity(veh)
+        SetNetworkIdCanMigrate(netId, false)
+        SetNetworkIdExistsOnAllMachines(netId, true)
+      end
       local deadline = GetGameTimer() + 3000
       while not HasCollisionLoadedAroundEntity(veh) and GetGameTimer() < deadline do Wait(50) end
       SetVehicleOnGroundProperly(veh)
@@ -141,11 +146,21 @@ local function spawn()
       local modLiveries = GetNumVehicleMods(veh, 48)
       if modLiveries and modLiveries > 0 then SetVehicleMod(veh, 48, math.random(0, modLiveries - 1), false) end
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
-      SetVehicleEngineOn(veh, true, true, false)
+      if cfg.tunePreset and Customs and Customs.ApplyTune then Customs.ApplyTune(veh, cfg.tunePreset) end
+      if (cfg.topSpeedBoost or 0) > 0 then ModifyVehicleTopSpeed(veh, cfg.topSpeedBoost) end
+      if cfg.engineSounds and #cfg.engineSounds > 0 then
+        ForceVehicleEngineAudio(veh, cfg.engineSounds[math.random(#cfg.engineSounds)])
+      end
+      -- Audio LOD hint: HIGH keeps the full engine bank active at range and out of view
+      -- (MAX would fight the game's 5-granular-engine limit with six cars).
+      SetAudioVehiclePriority(veh, cfg.audioPriority or 3)
+      SetVehicleEngineOn(veh, true, true, true)
       SetVehicleCanBeVisiblyDamaged(veh, false)
       SetVehicleEngineCanDegrade(veh, false)
-      local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, false, false)
+      local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, net, false)
       SetEntityAsMissionEntity(ped, true, true)
+      if net then SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false) end
+      SetVehicleEngineOn(veh, true, true, true)
       SetBlockingOfNonTemporaryEvents(ped, true)
       SetPedFleeAttributes(ped, 0, false)
       SetPedCanBeDraggedOut(ped, false)
@@ -153,6 +168,9 @@ local function spawn()
       SetDriverAggressiveness(ped, cfg.aggressiveness or 0.6)
       SetDriverRacingModifier(ped, 1.0)
       SetPedKeepTask(ped, true)
+      -- Full-face helmet: the model's default helmet (motocross lid on the motox peds)
+      GivePedHelmet(ped, true, 4096, -1)
+      SetPedHelmet(ped, true)
       FreezeEntityPosition(veh, false)
       FreezeEntityPosition(ped, false)
       local v = cfg.paceVariance or 0.08
@@ -165,17 +183,22 @@ local function spawn()
       }
       c.cruise = (pts[idx].v or cfg.cruiseSpeed or 30.0) * c.pace
       c.speed = c.cruise
-      c.idx = Practice.NextIndex(idx, n, cfg.lookahead or 3)
+      c.prog = idx
+      c.lastProg = GetGameTimer()
+      c.laps = 0
+      c.driver = (cfg.driverNames and cfg.driverNames[((i - 1) % #cfg.driverNames) + 1]) or ('CAR' .. i)
+      c.idx = Practice.NextIndex(idx, n, Practice.AimByCurvature(pts, idx, n, cfg.aimCornerPts or 2, cfg.aimMinPts or 4, cfg.aimMaxTurnDeg or 15, L.closed))
       cars[#cars + 1] = c
       driveTo(c)
       c.lastTask = GetGameTimer()
+      if (cfg.releaseSpeed or 0) > 0 then SetVehicleForwardSpeed(veh, cfg.releaseSpeed) end
       SetModelAsNoLongerNeeded(hash)
     else
       log(('model %s failed to load, skipped'):format(tostring(models[i])))
     end
     if i == 1 then
-      log(('releasing %d cars over %d line(s), one every %d s'):format(
-        count, #all, math.floor((cfg.staggerMs or 30000) / 1000)))
+      log(('releasing %d cars over %d line(s), one every %d s; first line "%s" %d points closed=%s'):format(
+        count, #all, math.floor((cfg.staggerMs or 30000) / 1000), tostring(all[1].name), #all[1].pts, tostring(all[1].closed)))
       startSteering()
     end
     if i < count then
@@ -190,6 +213,7 @@ end
 -- line if stuck. Runs only while cars are up; started with the first release.
 startSteering = function()
   CreateThread(function()
+    local lastBoard = 0
     while running do
       local now = GetGameTimer()
       local others = {}
@@ -198,14 +222,40 @@ startSteering = function()
       if mine ~= 0 then others[#others + 1] = mine end
       for _, c in ipairs(cars) do
         if DoesEntityExist(c.veh) and DoesEntityExist(c.ped) then
-          -- pace for this stretch of line: its speed profile x this car's pace factor
-          c.cruise = (c.pts[c.idx].v or cfg.cruiseSpeed or 30.0) * c.pace
-          raceLogic(c, others)
           local pos = GetEntityCoords(c.veh)
-          if Practice.Dist2D(pos, c.pts[c.idx]) <= (cfg.reachRadius or 20.0) then
-            local nxt, wrapped = Practice.NextIndex(c.idx, c.n, 1)
-            c.idx = nxt
-            if wrapped and not c.closed then placeOnLine(c, c.pts[1]); c.idx = Practice.NextIndex(1, c.n, cfg.lookahead or 3) end
+          -- Progress: the nearest of the next few points (never backwards), so a wobble or
+          -- the loop seam cannot pin the tracker behind the car.
+          local bestI, bestD = c.prog, Practice.Dist2D(pos, c.pts[c.prog])
+          local i = c.prog
+          for _ = 1, 6 do
+            local nxt, wrapped = Practice.NextIndex(i, c.n, 1)
+            if wrapped and not c.closed then
+              placeOnLine(c, c.pts[1]); c.prog = 1; c.idx = Practice.NextIndex(1, c.n, cfg.aimMinPts or 4); driveTo(c)
+              bestI = 1; break
+            end
+            i = nxt
+            local di = Practice.Dist2D(pos, c.pts[i])
+            if di < bestD then bestI, bestD = i, di end
+          end
+          if bestI ~= c.prog then
+            if bestI < c.prog then c.laps = (c.laps or 0) + 1 end   -- crossed the seam
+            c.prog = bestI; c.lastProg = now
+          end
+          -- pace for this stretch of line: its speed profile x this car's pace factor
+          c.cruise = (c.pts[c.prog].v or cfg.cruiseSpeed or 30.0) * c.pace
+          raceLogic(c, others)
+          -- Aim point scales with speed so the car never overshoots its own target.
+          local aim = Practice.AimPoints(GetEntitySpeed(c.veh), cfg.aimSeconds or 2.0, Config.Practice.recordSpacing or 12.0,
+            cfg.aimMinPts or 4, cfg.aimMaxPts or 14)
+          -- ...but never past a bend: a straight aim through a corner ends in the wall.
+          local curv = Practice.AimByCurvature(c.pts, c.prog, c.n, cfg.aimCornerPts or 2, cfg.aimMaxPts or 14, cfg.aimMaxTurnDeg or 25, c.closed)
+          if curv < aim then aim = curv end
+          -- ...and never cut the corner: the chord from the car to the aim stays near the line.
+          local chord = Practice.AimByChord(c.pts, pos, c.prog, c.n, cfg.aimCornerPts or 2, aim, cfg.aimMaxCut or 1.5, c.closed)
+          if chord < aim then aim = chord end
+          local want = Practice.NextIndex(c.prog, c.n, aim)
+          if Practice.Forward(c.idx, want, c.n) >= (cfg.retargetStep or 2) then
+            c.idx = want
             driveTo(c)
           end
           local status = GetScriptTaskStatus(c.ped, DRIVE_TASK)
@@ -221,15 +271,42 @@ startSteering = function()
           end
           if GetEntitySpeed(c.veh) > 1.0 then
             c.lastMove = now
-          elseif now - c.lastMove > (cfg.stuckMs or 8000) then
-            placeOnLine(c, c.pts[c.idx])
+          end
+          local noProgress = now - (c.lastProg or c.lastMove) > (cfg.noProgressMs or 10000)
+          if now - c.lastMove > (cfg.stuckMs or 6000) or noProgress then
+            -- Stuck: back onto the line at the car's own progress point. Stuck again within
+            -- a few points of the same place: skip well past it so it stops re-running the wall.
+            local at = c.prog
+            if c.stuckAt and Practice.Forward(c.stuckAt, c.prog, c.n) <= 4 then
+              at = Practice.NextIndex(c.prog, c.n, cfg.stuckSkipPts or 8)
+              log(('car %d stuck twice near point %d, skipping to %d'):format(c.slot, c.prog, at))
+            end
+            c.stuckAt = c.prog
+            c.prog = at
+            c.lastProg = now
+            c.idx = Practice.NextIndex(at, c.n, cfg.aimCornerPts or 2)
+            placeOnLine(c, c.pts[at])
             c.lastMove = now
             driveTo(c)
           end
         end
       end
+      -- Running order to this client's sign
+      if now - lastBoard >= (cfg.boardEveryMs or 1000) then
+        lastBoard = now
+        local order = {}
+        for _, c in ipairs(cars) do if DoesEntityExist(c.veh) then order[#order + 1] = c end end
+        table.sort(order, function(a, b)
+          if (a.laps or 0) ~= (b.laps or 0) then return (a.laps or 0) > (b.laps or 0) end
+          return a.prog > b.prog
+        end)
+        local names = {}
+        for i = 1, math.min(9, #order) do names[i] = order[i].driver end
+        TriggerEvent('dps-roxwoodracing:practice:board', cfg.boardTitle or 'PRAC', names)
+      end
       Wait(cfg.tickMs or 250)
     end
+    TriggerEvent('dps-roxwoodracing:practice:boardOff')
   end)
 end
 

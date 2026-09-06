@@ -20,20 +20,55 @@ TEST('Practice.PrevIndex walks backwards with wrap', function()
   EQ(Practice.PrevIndex(5, 348, 12), 341)
 end)
 TEST('Practice.Relative and Decide: slow behind a car ahead and aim past its free side', function()
-  local aware = { range = 40.0, lateral = 5.0, minSpeed = 12.0, overtakeOffset = 3.5 }
+  local aware = { range = 40.0, lateral = 5.0, minSpeed = 12.0, overtakeOffset = 3.5, passWithin = 25.0 }
   local ahead, lateral = Practice.Relative({x=0,y=0}, {x=0,y=1}, {x=2,y=20})
   EQ(ahead, 20.0); EQ(lateral, 2.0)   -- +x while facing +y is the right-hand side
   local speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = 2.0 } }, aware)
-  EQ(speed, 15.0); EQ(off, -3.5)      -- car ahead sits right, pass on the left
+  EQ(speed, 30.0); EQ(off, -3.5)      -- car ahead sits right: hold pace, pass on the left
   speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = -2.0 } }, aware)
   EQ(off, 3.5)
   speed, off = Practice.Decide(30.0, { { ahead = -5.0, lateral = 0.0 }, { ahead = 60.0, lateral = 0.0 } }, aware)
   EQ(speed, 30.0); EQ(off, 0.0)
   speed = Practice.Decide(30.0, { { ahead = 2.0, lateral = 0.0 } }, aware)
-  EQ(speed, 12.0)
+  EQ(speed, 24.0)                     -- right on its tail: lift to 80%
 end)
 TEST('Practice.OffsetPoint shifts to the right of travel', function()
   local pts = { {x=0,y=0,z=1}, {x=0,y=10,z=1} }
   local x, y = Practice.OffsetPoint(pts, 1, 2, 3.5)
   EQ(x, 3.5); EQ(y, 0.0)
+end)
+TEST('Practice.Decide only starts the pass move inside passWithin', function()
+  local aware = { range = 50.0, lateral = 6.0, minSpeed = 9.0, overtakeOffset = 3.5, passWithin = 25.0 }
+  local speed, off = Practice.Decide(60.0, { { ahead = 40.0, lateral = 1.0 } }, aware)
+  EQ(off, 0.0); EQ(speed, 60.0)
+  speed, off = Practice.Decide(60.0, { { ahead = 20.0, lateral = 1.0 } }, aware)
+  EQ(off, -3.5)
+end)
+TEST('Practice.AimPoints scales with speed and clamps; Forward is circular', function()
+  EQ(Practice.AimPoints(0.0, 2.0, 12.0, 4, 14), 4)
+  EQ(Practice.AimPoints(30.0, 2.0, 12.0, 4, 14), 5)
+  EQ(Practice.AimPoints(60.0, 2.0, 12.0, 4, 14), 10)
+  EQ(Practice.AimPoints(200.0, 2.0, 12.0, 4, 14), 14)
+  EQ(Practice.Forward(340, 5, 348), 13)
+  EQ(Practice.Forward(5, 340, 348), 335)
+  EQ(Practice.Forward(7, 7, 348), 0)
+end)
+TEST('Practice.AimByCurvature aims far on a straight and short into a bend', function()
+  local pts = {}
+  for i = 1, 30 do pts[i] = { x = i, y = 0, z = 0, h = (i <= 20) and 270.0 or (270.0 + (i - 20) * 10.0) } end
+  EQ(Practice.AimByCurvature(pts, 1, 30, 2, 14, 15, false), 14)     -- straight: full aim
+  EQ(Practice.AimByCurvature(pts, 18, 30, 2, 14, 15, false), 3)     -- 21 is +10, 22 is +20 > 15
+  EQ(Practice.AimByCurvature(pts, 24, 30, 2, 14, 15, false), 2)     -- inside the bend: floor
+  local ring = {}
+  for i = 1, 36 do ring[i] = { x = 0, y = 0, z = 0, h = (i - 1) * 10.0 } end
+  EQ(Practice.AimByCurvature(ring, 35, 36, 2, 14, 15, true), 2)     -- wraps and stays short
+end)
+TEST('Practice.AimByChord aims far on a straight and shortens at the turn-in', function()
+  local pts = {}
+  for i = 1, 20 do pts[i] = { x = i * 12.0, y = 0.0, z = 0 } end                 -- straight east
+  for i = 21, 40 do pts[i] = { x = 240.0 + 12.0, y = (i - 20) * 12.0, z = 0 } end -- then north
+  EQ(Practice.AimByChord(pts, { x = 0, y = 0 }, 1, 40, 2, 14, 1.5, false), 14)   -- all straight ahead
+  local k = Practice.AimByChord(pts, { x = 168, y = 0 }, 14, 40, 2, 14, 1.5, false)
+  EQ(k, 6)                                                                       -- reaches the corner point 20, not past it
+  EQ(Practice.DistToSegment({ x = 5, y = 3 }, { x = 0, y = 0 }, { x = 10, y = 0 }), 3.0)
 end)

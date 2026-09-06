@@ -87,6 +87,16 @@ CreateThread(function()
     -- Request current display state from the server so late-joiners see the board
     TriggerServerEvent("dps-roxwoodracing:requestData")
 
+    -- Practice cars are local to this client, so their running order is fed to this
+    -- client's sign directly; when practice ends the server's board is requested back.
+    AddEventHandler('dps-roxwoodracing:practice:board', function(title, names)
+        if not DuiObject then return end
+        SendDuiMessage(DuiObject, json.encode({ type = "playerNames", title = title, players = names }))
+    end)
+    AddEventHandler('dps-roxwoodracing:practice:boardOff', function()
+        TriggerServerEvent("dps-roxwoodracing:requestData")
+    end)
+
     -- Re-apply when a player gets near the sign. If the dictionary was not resident at
     -- startup (Roxwood is far from most spawns) the first registration can miss; this one
     -- runs with the sign streamed in. One-shot per approach, no polling of our own.
