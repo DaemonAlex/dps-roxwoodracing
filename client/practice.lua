@@ -9,6 +9,7 @@ local running, nearTrack = false, false
 local line, lineClosed = nil, false
 local trackPoint
 
+local startSteering
 local function log(msg) print('[dps-roxwoodracing] practice: ' .. msg) end
 local DRIVE_TASK = 0x93A5526E  -- SCRIPT_TASK_VEHICLE_DRIVE_TO_COORD
 
@@ -87,13 +88,14 @@ local function spawn()
   local driverHash = loadModel(joaat(cfg.driverModel or 'a_m_y_motox_01'), 5000)
   if not driverHash then log('driver model failed to load') running = false return end
 
-  -- Grid forms on the line nearest the player (cars far outside streaming range never
-  -- get collision, and a drive task on a frozen car does nothing).
+  -- Cars are released one at a time, staggerMs apart, from a point releaseBehind points
+  -- before the player, so each passes the player at speed and well clear of the others.
+  -- (Spawning far outside streaming range gives no collision and a dead drive task.)
   local me = GetEntityCoords(PlayerPedId())
-  local nearest = Practice.NearestIndex(pts, me)
+  local release = Practice.PrevIndex(Practice.NearestIndex(pts, me), n, cfg.releaseBehind or 12)
   for i = 1, (cfg.cars or 4) do
     if not running then break end
-    local idx = Practice.NextIndex(nearest, n, (i - 1) * (cfg.gridSpacing or 4))
+    local idx = release
     local pt = pts[idx]
     local hash = loadModel(joaat(models[i]), 8000)
     if hash then
@@ -133,12 +135,23 @@ local function spawn()
     else
       log(('model %s failed to load, skipped'):format(tostring(models[i])))
     end
-    Wait(50)
+    if i == 1 then
+      log(('releasing %d cars on the "%s" line (%d points, %s), one every %d s'):format(
+        cfg.cars or 4, cfg.lineName or 'main', n, lineClosed and 'closed' or 'open', math.floor((cfg.staggerMs or 30000) / 1000)))
+      startSteering(pts, n)
+    end
+    if i < (cfg.cars or 4) then
+      local until_ = GetGameTimer() + (cfg.staggerMs or 30000)
+      while running and GetGameTimer() < until_ do Wait(250) end
+    end
   end
   SetModelAsNoLongerNeeded(driverHash)
-  log(('%d cars running the "%s" line (%d points, %s)'):format(#cars, cfg.lineName or 'main', n, lineClosed and 'closed' or 'open'))
 
-  -- Steering: keep each car's target a few points ahead; put it back on the line if stuck.
+end
+
+-- Steering: keep each car's target a few points ahead; put it back on the line if stuck.
+-- Runs only while cars are up; started with the first release.
+startSteering = function(pts, n)
   CreateThread(function()
     while running do
       local now = GetGameTimer()

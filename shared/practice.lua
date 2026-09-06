@@ -36,3 +36,10 @@ function Practice.NearestIndex(pts, pos)
   end
   return best
 end
+
+--- Index `back` points behind idx, wrapping.
+function Practice.PrevIndex(idx, n, back)
+  local j = idx - (back or 1)
+  while j < 1 do j = j + n end
+  return j
+end
