@@ -53,19 +53,32 @@ RegisterNetEvent('dps-roxwoodracing:line:save', function(name, points)
     Locale(info.closed and 'line_saved_closed' or 'line_saved_open', name, info.count), name)
 end)
 
--- The line the AI practice cars run (cached until it is re-recorded).
-lib.callback.register('dps-roxwoodracing:practice:line', function(_)
-  local name = (Config.Practice.ai and Config.Practice.ai.lineName) or 'main'
-  if not cache[name] then
-    local pts, _, closed = Lines.Get(name)
-    if pts then
-      pts = Lines.Smooth(pts, Config.Practice.smoothRadius or 2, Config.Practice.smoothPasses or 2, closed)
-      cache[name] = { pts = pts, closed = closed }
-    end
+-- The lines the AI practice cars run (all stored lines, or Config.Practice.ai.lineNames),
+-- smoothed and cached until a line is re-recorded.
+lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
+  local names = Config.Practice.ai and Config.Practice.ai.lineNames
+  if not names then
+    names = {}
+    for _, r in ipairs(Lines.List()) do names[#names + 1] = r.name end
   end
-  local c = cache[name]
-  if not c then return nil end
-  return c.pts, c.closed
+  local out = {}
+  for _, name in ipairs(names) do
+    if not cache[name] then
+      local pts, _, closed = Lines.Get(name)
+      if pts then
+        pts = Lines.Smooth(pts, Config.Practice.smoothRadius or 2, Config.Practice.smoothPasses or 2, closed)
+        local ai = Config.Practice.ai or {}
+        local set = { { name = name, pts = pts, closed = closed } }
+        for k = 1, (ai.variants or 0) do
+          set[#set + 1] = { name = ('%s#%d'):format(name, k), closed = closed,
+            pts = Lines.Vary(pts, k * 7919 + #pts, ai.varyAmplitude or 2.5, closed) }
+        end
+        cache[name] = set
+      end
+    end
+    for _, L in ipairs(cache[name] or {}) do out[#out + 1] = L end
+  end
+  return out
 end)
 
 lib.callback.register('dps-roxwoodracing:line:list', function(src)

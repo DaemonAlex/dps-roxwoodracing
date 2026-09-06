@@ -42,3 +42,19 @@ TEST('Lines.Smooth flattens a zigzag, keeps count, wraps on closed loops, recomp
   local c = Lines.Smooth(circle, 2, 1, true)
   TRUTHY(math.abs(math.sqrt(c[1].x ^ 2 + c[1].y ^ 2) - 100) < 5.0, 'closed wrap keeps the first point near the circle')
 end)
+TEST('Lines.Vary drifts within the amplitude, keeps the count, and differs by seed', function()
+  local circle = {}
+  for i = 1, 72 do local a = (i - 1) / 72 * 2 * math.pi; circle[i] = { x = 200 * math.cos(a), y = 200 * math.sin(a), z = 0 } end
+  local v1 = Lines.Vary(circle, 1, 2.5, true)
+  local v2 = Lines.Vary(circle, 2, 2.5, true)
+  EQ(#v1, 72)
+  local maxDev, diff = 0.0, 0.0
+  for i = 1, 72 do
+    local r1 = math.sqrt(v1[i].x ^ 2 + v1[i].y ^ 2)
+    maxDev = math.max(maxDev, math.abs(r1 - 200))
+    diff = math.max(diff, math.sqrt((v1[i].x - v2[i].x) ^ 2 + (v1[i].y - v2[i].y) ^ 2))
+  end
+  TRUTHY(maxDev <= 2.5 + 1.0, 'deviation ' .. maxDev)   -- +1.0 for smoothing shrink on a circle
+  TRUTHY(diff > 0.5, 'variants differ: ' .. diff)
+  TRUTHY(v1[10].h, 'heading set')
+end)

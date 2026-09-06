@@ -19,7 +19,9 @@ Config.Practice = {
 -- nothing and vanish the moment a race goes live.
 Config.Practice.ai = {
     enabled        = true,
-    lineName       = 'main',         -- recorded with /recordline <name>
+    lineNames      = nil,            -- nil = every stored line; or a list like { 'main', 'wide' }
+    variants       = 4,              -- generated variants per stored line (smooth lateral drift)
+    varyAmplitude  = 2.5,            -- max metres a variant drifts either side of the recorded line
     cars           = 6,
     -- Open-wheel grid (vanilla). nil = random picks from Config.SpecFallbackVehicles.
     models         = { 'openwheel1', 'openwheel2', 'formula', 'formula2' },
@@ -35,6 +37,7 @@ Config.Practice.ai = {
     stuckMs        = 8000,           -- no movement for this long = put it back on the line
     aggressiveness = 0.6,
     paceVariance   = 0.08,           -- each car's pace = cruiseSpeed x (1 +/- this)
+    laneJitter     = 1.5,            -- each car keeps its own lateral bias of up to this (m)
     -- Race awareness: slow toward a car ahead inside this window and aim past it
     aware = {
         range          = 40.0,       -- metres ahead to look

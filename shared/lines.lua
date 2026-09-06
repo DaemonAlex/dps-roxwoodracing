@@ -64,3 +64,36 @@ function Lines.Smooth(pts, radius, passes, closed)
   end
   return cur
 end
+
+--- A variant of a line: a smooth lateral drift (sum of three slow sine waves, random
+--- phase from `seed`) of at most `amplitude` metres either side, then smoothed. Same
+--- point count as the source so indices still line up. Deterministic per seed.
+function Lines.Vary(pts, seed, amplitude, closed)
+  local n = #pts
+  if n < 3 then return pts end
+  local state = (seed or 1) % 2147483647
+  local function rand()
+    state = (state * 48271) % 2147483647
+    return state / 2147483647
+  end
+  local terms, total = {}, 0.0
+  for k = 1, 3 do
+    local amp = (0.4 + 0.6 * rand()) / k
+    terms[k] = { freq = k + math.floor(rand() * 2), phase = rand() * 2 * math.pi, amp = amp }
+    total = total + amp
+  end
+  for _, t in ipairs(terms) do t.amp = t.amp / total * amplitude end   -- worst case = amplitude
+  local out = {}
+  for i = 1, n do
+    local u = (i - 1) / n * 2 * math.pi
+    local off = 0.0
+    for _, t in ipairs(terms) do off = off + t.amp * math.sin(t.freq * u + t.phase) end
+    local a = pts[i]
+    local b = pts[i + 1] or (closed and pts[1]) or pts[i]
+    local dx, dy = b.x - a.x, b.y - a.y
+    local len = math.sqrt(dx * dx + dy * dy)
+    if len < 0.01 then out[i] = { x = a.x, y = a.y, z = a.z }
+    else out[i] = { x = a.x + (dy / len) * off, y = a.y - (dx / len) * off, z = a.z } end
+  end
+  return Lines.Smooth(out, 1, 1, closed)
+end
