@@ -29,6 +29,8 @@ client_scripts {
   'client/main.lua',
   'client/pit.lua',
   'client/leaderboard.lua',
+  'client/recorder.lua',
+  'client/practice.lua',
 }
 
 server_scripts {
@@ -43,6 +45,7 @@ server_scripts {
   'server/race.lua',
   'server/staff.lua',
   'server/leaderboard.lua',
+  'server/lines.lua',
 }
 
 ui_page 'html/index.html'
