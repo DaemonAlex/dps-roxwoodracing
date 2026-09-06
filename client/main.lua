@@ -190,6 +190,7 @@ local currentProps         = {}
 local currentZones         = {}
 local racerCheckpointIndex = 0
 raceMode                   = 'spec'
+local myRaceVeh            = nil
 local myPosition           = 0
 local totalRacers          = 0
 -- Expose race state for other client scripts (c_pit.lua)
@@ -636,10 +637,11 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
     -- Initialize HUD lap counters using payload laps so HUD shows 1/x from start
     currentLap   = 1
     totalLaps    = tonumber(data.laps) or totalLaps or 1
-    Hud.ShowRace(0, 0, 1, totalLaps)
 
-    -- clear old props
+    -- clear old props (this also hides the HUD, so the HUD is shown after it)
     TriggerEvent("dps-roxwoodracing:client:destroyprops")
+    inRace = true
+    Hud.ShowRace(0, 0, 1, totalLaps)
 
     -- spawn new props...
     for _, pd in ipairs(Config.TrackProps[data.track] or {}) do
@@ -698,6 +700,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
             Notify(Config.Job.label, "Vehicle failed to spawn. Please try again.", "error", 5000)
             inRace = false
             TriggerEvent("dps-roxwoodracing:client:destroyprops")
+            TriggerServerEvent("dps-roxwoodracing:spawnFailed", currentLobby)
             return
           end
           Wait(0)
@@ -708,6 +711,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
             Notify(Config.Job.label, "Vehicle failed to spawn. Please try again.", "error", 5000)
             inRace = false
             TriggerEvent("dps-roxwoodracing:client:destroyprops")
+            TriggerServerEvent("dps-roxwoodracing:spawnFailed", currentLobby)
             return
           end
           Wait(0)
@@ -717,6 +721,7 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
 
     raceMode = data.mode or 'spec'
     Ghost.myVeh = veh
+    myRaceVeh = veh
     SetEntityAsMissionEntity(veh, true, true)
     if raceMode == 'open' then
         -- Own car: no keys, fuel or style. Snap onto the grid slot and hold for the countdown.
@@ -964,11 +969,13 @@ RegisterNetEvent("dps-roxwoodracing:client:finishTeleport", function(coords, kee
         else
             if v ~= 0 then
                 TaskLeaveVehicle(ped, v, 0); Wait(500)
-                if DoesEntityExist(v) then DeleteVehicle(v) end
+                -- Only the raceway's own spec car is deleted; never a personal car the player happened to sit in
+                if v == myRaceVeh and DoesEntityExist(v) then DeleteVehicle(v) end
             end
             SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
             SetEntityHeading(ped, coords.w)
         end
+        myRaceVeh = nil
         Wait(500); DoScreenFadeIn(1000)
     end)
 end)
@@ -1080,3 +1087,14 @@ local function openControl()
 end
 RegisterNetEvent('dps-roxwoodracing:client:openControl', openControl)
 RegisterCommand('raceway', openControl, false)
+
+-- Multichar switch / logout: drop every bit of lobby and race state so it cannot leak onto the next character.
+RegisterNetEvent('QBCore:Client:OnPlayerUnload', function()
+    TriggerEvent("dps-roxwoodracing:client:destroyprops")
+    inRace = false
+    hasLobby, currentLobby, lobbyOwner = false, nil, nil
+    myRaceVeh = nil
+    HideLobbyDisplay()
+    Hud.SelectCountdown(nil)
+    SetNuiFocus(false, false)
+end)

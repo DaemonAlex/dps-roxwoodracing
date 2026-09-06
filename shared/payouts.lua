@@ -21,7 +21,7 @@ end
 function Payouts.Compute(results, bestLapPid, eco, pool, balance, allowPurse)
   local reason = nil
   if allowPurse == false then reason = 'solo'
-  elseif (balance or 0) < Payouts.PurseTotal(results, bestLapPid, eco) then reason = 'short' end
+  elseif ((balance or 0) - (pool or 0)) < Payouts.PurseTotal(results, bestLapPid, eco) then reason = 'short' end
   local covered = reason == nil
   local out = {}
   for pos, e in ipairs(results) do

@@ -4,6 +4,7 @@ local economy = { payouts = { [1] = 5000, [2] = 3000, [3] = 1500 }, participatio
 TEST('Payouts: allowPurse=false pays the pool only and says why', function()
   local p, covered, reason = Payouts.Compute({ { id = 1 } }, 1, economy, 1000, 1e9, false)
   FALSY(covered); EQ(reason, 'solo'); EQ(p[1].position, 0); EQ(p[1].pool, 600); EQ(p[1].total, 600)
+  local _, c4 = Payouts.Compute({ { id = 1 }, { id = 2 } }, 1, economy, 3000, 12000, true); FALSY(c4, 'pool sitting in the account does not count toward the purse')
   local _, c2, r2 = Payouts.Compute({ { id = 1 }, { id = 2 } }, 1, economy, 0, 0, true)
   FALSY(c2); EQ(r2, 'short')
   local _, c3, r3 = Payouts.Compute({ { id = 1 }, { id = 2 } }, 1, economy, 0, 1e9, true)
@@ -39,5 +40,6 @@ TEST('Rewards: solo race pays pool only; refund skipped for offline player', fun
   dofile('server/rewards.lua')
   local p, covered, reason = Rewards.Settle({ players = { 1 }, prizePool = 1000, name = 'L' }, { { id = 1 } }, 1)
   FALSY(covered); EQ(reason, 'solo'); EQ(cash[1], 600); EQ(society, 100000 - 600)
-  Rewards.RefundEntryFee(99, 'L'); EQ(society, 100000 - 600, 'offline refund must not touch the account')
+  Bridge.AddMoneyByIdentifier = function() return false end
+  FALSY(Rewards.RefundEntryFee(99, 'L', { cid = 'CID99', amount = 1000 })); EQ(society, 100000 - 600, 'undeliverable refund is returned to the account')
 end)
