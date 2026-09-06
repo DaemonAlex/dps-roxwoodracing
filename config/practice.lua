@@ -39,7 +39,7 @@ Config.Practice.ai = {
     brakePoints    = 8,              -- points (5 x 12 m) before a corner to start slowing
     fullTurnDeg    = 35,
     releaseBehind  = 12,             -- release point: this many points (12 x 12 m) before the player
-    staggerMs      = 40000,          -- one car released every 40 s
+    staggerMs      = 35000,          -- one car released every 35 s
     -- Aim point: `aimSeconds` of travel ahead of the car's progress on the line, clamped to
     -- aimMinPts..aimMaxPts points (12 m each). Re-issued when it moves retargetStep points.
     aimSeconds     = 2.0,
