@@ -58,7 +58,10 @@ lib.callback.register('dps-roxwoodracing:practice:line', function(_)
   local name = (Config.Practice.ai and Config.Practice.ai.lineName) or 'main'
   if not cache[name] then
     local pts, _, closed = Lines.Get(name)
-    if pts then cache[name] = { pts = pts, closed = closed } end
+    if pts then
+      pts = Lines.Smooth(pts, Config.Practice.smoothRadius or 2, Config.Practice.smoothPasses or 2, closed)
+      cache[name] = { pts = pts, closed = closed }
+    end
   end
   local c = cache[name]
   if not c then return nil end

@@ -8,6 +8,9 @@ Config.Practice = {
     minPoints     = 10,     -- shorter recordings are discarded
     maxPoints     = 2000,   -- recording stops itself at this many points
     closeRadius   = 40.0,   -- end within this distance of the start = closed loop
+    -- Smoothing applied when the line is served to clients (the recording stays raw):
+    smoothRadius  = 2,      -- average each point with this many neighbours either side
+    smoothPasses  = 2,
 }
 
 --- AI PRACTICE CARS

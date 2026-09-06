@@ -29,3 +29,16 @@ TEST('Lines.Validate rejects bad names, short, long, gappy and malformed lines',
   _, e = Lines.Validate('main', m, cfg); EQ(e, 'bad_point')
   _, e = Lines.Validate('main', 'nope', cfg); EQ(e, 'bad_points')
 end)
+TEST('Lines.Smooth flattens a zigzag, keeps count, wraps on closed loops, recomputes heading', function()
+  local pts = {}
+  for i = 1, 20 do pts[i] = { x = i * 10.0, y = (i % 2 == 0) and 2.0 or -2.0, z = 30.0, h = 0.0 } end
+  local out = Lines.Smooth(pts, 2, 2, false)
+  EQ(#out, 20)
+  TRUTHY(math.abs(out[10].y) < 1.0, 'wobble reduced')
+  EQ(out[1].x, 10.0); EQ(out[20].x, 200.0)          -- open line keeps its ends
+  TRUTHY(out[10].h > 260 and out[10].h < 280, 'heading east ~270: ' .. tostring(out[10].h))
+  local circle = {}
+  for i = 1, 36 do local a = (i - 1) / 36 * 2 * math.pi; circle[i] = { x = 100 * math.cos(a), y = 100 * math.sin(a), z = 0 } end
+  local c = Lines.Smooth(circle, 2, 1, true)
+  TRUTHY(math.abs(math.sqrt(c[1].x ^ 2 + c[1].y ^ 2) - 100) < 5.0, 'closed wrap keeps the first point near the circle')
+end)
