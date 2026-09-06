@@ -35,9 +35,9 @@ Config.Practice.ai = {
     cruiseSpeed    = 30.0,           -- m/s fallback when a line has no speed profile
     -- Speed profile from the line's shape (m/s): straights run topSpeed, a bend of
     -- fullTurnDeg or more over ~36 m runs cornerSpeed, braking starts brakePoints early
-    topSpeed       = 60.0,           -- ~216 km/h
+    topSpeed       = 90.0,           -- above any open-wheeler's real top speed: flat out on the straights
     cornerSpeed    = 26.0,           -- ~94 km/h
-    brakePoints    = 6,              -- points (5 x 12 m) before a corner to start slowing
+    brakePoints    = 8,              -- points (5 x 12 m) before a corner to start slowing
     fullTurnDeg    = 50,
     releaseBehind  = 12,             -- release point: this many points (12 x 12 m) before the player
     staggerMs      = 35000,          -- one car released every 35 s
