@@ -35,6 +35,7 @@ Config.Practice.ai = {
     -- nil = keep the model's own sound.
     tunePreset     = 'Race',         -- Config.Tune preset applied to each car (max engine/transmission/brakes + turbo)
     topSpeedBoost  = 25,             -- ModifyVehicleTopSpeed percent
+    lodDistance    = 3000,           -- render LOD distance (m) so cars stay visible from the tower
     audioPriority  = 3,              -- SetAudioVehiclePriority: 0 normal, 1 medium, 3 high, 2 max (max starves other cars)
     engineSounds   = { 'honf1v6eng', 'lg115classicf1v10', 'frf119eng', 'lg59hurv10', 'lambov10', 'lg48lexlfa' },
     spawnDistance  = 300.0,          -- metres beyond the line's extent that counts as "near"
@@ -90,4 +91,5 @@ Config.Practice.ai = {
 Config.Practice.pitCars = {
     spawnDistance = 300.0,
     models        = nil,   -- random pool when placed on foot; nil = the AI grid models
+    lodDistance   = 3000,  -- render LOD distance (m)
 }

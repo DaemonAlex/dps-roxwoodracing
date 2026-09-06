@@ -37,6 +37,7 @@ local function spawn(rows)
       SetVehicleDoorsLocked(veh, 2)
       SetVehicleDirtLevel(veh, 0.0)
       FreezeEntityPosition(veh, true)
+      SetEntityLodDist(veh, cfg.lodDistance or 3000)
       SetEntityInvincible(veh, true)
       SetModelAsNoLongerNeeded(hash)
       spawned[#spawned + 1] = veh
