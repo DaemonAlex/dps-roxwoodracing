@@ -51,7 +51,8 @@ Config.Practice.ai = {
     retargetStep   = 2,
     stopRange      = 2.0,
     tickMs         = 250,            -- steering tick while cars are up
-    stuckMs        = 8000,           -- no movement for this long = put it back on the line
+    stuckMs        = 6000,           -- no movement for this long = put it back on the line
+    stuckSkipPts   = 8,              -- stuck twice at the same spot: skip this many points past it
     aggressiveness = 0.6,
     paceVariance   = 0.08,           -- each car's pace = cruiseSpeed x (1 +/- this)
     laneJitter     = 1.0,            -- each car keeps its own lateral bias of up to this (m)

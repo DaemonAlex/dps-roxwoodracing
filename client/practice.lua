@@ -249,8 +249,18 @@ startSteering = function()
           end
           if GetEntitySpeed(c.veh) > 1.0 then
             c.lastMove = now
-          elseif now - c.lastMove > (cfg.stuckMs or 8000) then
-            placeOnLine(c, c.pts[c.idx])
+          elseif now - c.lastMove > (cfg.stuckMs or 6000) then
+            -- Stuck: back onto the line at the car's own progress point. Stuck again within
+            -- a few points of the same place: skip well past it so it stops re-running the wall.
+            local at = c.prog
+            if c.stuckAt and Practice.Forward(c.stuckAt, c.prog, c.n) <= 4 then
+              at = Practice.NextIndex(c.prog, c.n, cfg.stuckSkipPts or 8)
+              log(('car %d stuck twice near point %d, skipping to %d'):format(c.slot, c.prog, at))
+            end
+            c.stuckAt = c.prog
+            c.prog = at
+            c.idx = Practice.NextIndex(at, c.n, cfg.aimCornerPts or 2)
+            placeOnLine(c, c.pts[at])
             c.lastMove = now
             driveTo(c)
           end
