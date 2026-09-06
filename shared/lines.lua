@@ -107,6 +107,7 @@ function Lines.SpeedProfile(pts, closed, vmax, vmin, brakePts, fullTurnDeg)
   if n < 4 then for i = 1, n do pts[i].v = vmax end return pts end
   local function wrap(i) if i > n then return closed and (i - n) or n end return i end
   local function dir(i)
+    if not closed and i >= n then i = n - 1 end   -- open end: keep the last segment's heading
     local a, b = pts[i], pts[wrap(i + 1)]
     return math.atan(b.y - a.y, b.x - a.x)
   end
