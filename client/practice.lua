@@ -177,7 +177,11 @@ local function spawn()
         goto continue
       end
       SetEntityAsMissionEntity(ped, true, true)
-      if net then SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false) end
+      if net then
+        SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false)
+        -- Ask the server to keep these two beyond the OneSync culling distance
+        TriggerServerEvent('dps-roxwoodracing:practice:keep', { NetworkGetNetworkIdFromEntity(veh), NetworkGetNetworkIdFromEntity(ped) })
+      end
       SetVehicleOnGroundProperly(veh)
       -- Distinct colour per car, random livery where the model has them
       local col = palette[((i - 1) % #palette) + 1]

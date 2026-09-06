@@ -35,6 +35,7 @@ Config.Practice.ai = {
     -- nil = keep the model's own sound.
     tunePreset     = 'Race',         -- Config.Tune preset applied to each car (max engine/transmission/brakes + turbo)
     topSpeedBoost  = 25,             -- ModifyVehicleTopSpeed percent
+    cullRadius     = 6000.0,         -- server-side distance culling radius for each car + driver (OneSync default ~424 m)
     lodDistance    = 3000,           -- render LOD distance (m) so cars stay visible from the tower
     audioPriority  = 3,              -- SetAudioVehiclePriority: 0 normal, 1 medium, 3 high, 2 max (max starves other cars)
     engineSounds   = { 'honf1v6eng', 'lg115classicf1v10', 'frf119eng', 'lg59hurv10', 'lambov10', 'lg48lexlfa' },
