@@ -72,3 +72,16 @@ TEST('Practice.AimByChord aims far on a straight and shortens at the turn-in', f
   EQ(k, 6)                                                                       -- reaches the corner point 20, not past it
   EQ(Practice.DistToSegment({ x = 5, y = 3 }, { x = 0, y = 0 }, { x = 10, y = 0 }), 3.0)
 end)
+TEST('Practice.ShortName, RollingAvg, PaceMult, FormatMs', function()
+  EQ(Practice.ShortName('Damon Stor'), 'DAMON'); EQ(Practice.ShortName('j.r. 77'), 'JR'); EQ(Practice.ShortName(''), 'PLYR')
+  local r, avg = Practice.RollingAvg({}, 100000, 5); EQ(#r, 1); EQ(avg, 100000)
+  r, avg = Practice.RollingAvg({ 90000, 92000, 94000, 96000, 98000 }, 100000, 5); EQ(#r, 5); EQ(r[1], 92000); EQ(avg, 96000)
+  local _, none = Practice.RollingAvg({}, nil, 5); EQ(none, nil)
+  -- AI lapped 90 s at full pace; player average 100 s -> aim 97 s -> 0.928
+  local m = Practice.PaceMult(90000, 1.0, 100000, 0.03, 0.75, 1.05); TRUTHY(math.abs(m - 0.9278) < 0.001, tostring(m))
+  -- AI lapped 100 s while running at 0.9 (=> 90 s at full); player average 80 s -> clamp to 1.05
+  EQ(Practice.PaceMult(100000, 0.9, 80000, 0.03, 0.75, 1.05), 1.05)
+  EQ(Practice.PaceMult(90000, 1.0, 200000, 0.03, 0.75, 1.05), 0.75)
+  EQ(Practice.PaceMult(nil, 1.0, 100000), nil)
+  EQ(Practice.FormatMs(83456), '1:23.456')
+end)

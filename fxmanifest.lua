@@ -48,6 +48,7 @@ server_scripts {
   'server/leaderboard.lua',
   'server/lines.lua',
   'server/pitcars.lua',
+  'server/practice.lua',
 }
 
 ui_page 'html/index.html'
