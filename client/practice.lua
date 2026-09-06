@@ -173,6 +173,12 @@ local function spawn()
       SetPedHelmet(ped, true)
       FreezeEntityPosition(veh, false)
       FreezeEntityPosition(ped, false)
+      -- Keep simulating far from the player: without loaded collision an entity is frozen,
+      -- and the tower looks over most of the lap.
+      SetEntityLoadCollisionFlag(veh, true)
+      SetEntityLoadCollisionFlag(ped, true)
+      SetEntityLodDist(veh, cfg.lodDistance or 3000)
+      SetEntityLodDist(ped, cfg.lodDistance or 3000)
       local v = cfg.paceVariance or 0.08
       local j = cfg.laneJitter or 1.5
       local c = {
