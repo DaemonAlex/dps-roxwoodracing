@@ -7,71 +7,141 @@ if Config.DebugPrints then print("[dps-roxwoodracing] c_pit.lua loaded") end
 -- will hold all our ped references
 local pitZones = {}
 local pitBlips = {}
+local inPit = false   -- true while a pit stop sequence is running (see section 3)
 
 --------------------------------------------------------------------------------
--- 1) SPAWN ALL PIT CREW & ADD MAP BLIPS
+-- 1) SPAWN ALL PIT CREW
 --------------------------------------------------------------------------------
+-- Load one ped model with a timeout; returns the hash, or nil if this client lacks it.
+local function loadPedModel(name, timeoutMs)
+    local hash = joaat(name)
+    if not IsModelValid(hash) then return nil end
+    RequestModel(hash)
+    local deadline = GetGameTimer() + (timeoutMs or 5000)
+    while not HasModelLoaded(hash) and GetGameTimer() < deadline do Wait(50) end
+    if HasModelLoaded(hash) then return hash end
+    return nil
+end
+
+-- Every configured crew model that exists on this client. Falls back to one vanilla
+-- mechanic so the crew always spawns even on a client missing every addon ped.
+local function buildModelPool()
+    local pool, seen = {}, {}
+    local names = {}
+    if Config.PitCrewModel then names[#names + 1] = Config.PitCrewModel end  -- legacy single-model setting
+    for _, n in ipairs(Config.PitCrewModels or {}) do names[#names + 1] = n end
+    for _, name in ipairs(names) do
+        if not seen[name] then
+            seen[name] = true
+            local hash = loadPedModel(name, 5000)
+            if hash then
+                pool[#pool + 1] = hash
+            elseif Config.DebugPrints then
+                print(("[dps-roxwoodracing] pit crew model '%s' not available, skipping"):format(name))
+            end
+        end
+    end
+    if #pool == 0 then
+        print("[dps-roxwoodracing] WARNING: no configured pit crew model loaded, using s_m_y_xmech_02")
+        local hash = loadPedModel('s_m_y_xmech_02', 8000)
+        if hash then pool[1] = hash end
+    end
+    return pool
+end
+
+-- Ground Z under a spawn point. The pit lane is normally far from the player when this
+-- runs (player load), so its collision is not streamed and the lookup fails; request the
+-- collision first and retry briefly. Probe from +1.0 before +5.0 so a pit-garage canopy
+-- above the box is not mistaken for the floor.
+local function groundAt(x, y, z)
+    local deadline = GetGameTimer() + 3000
+    repeat
+        RequestCollisionAtCoord(x, y, z)
+        local found, gz = GetGroundZFor_3dCoord(x, y, z + 1.0, false)
+        if not found then found, gz = GetGroundZFor_3dCoord(x, y, z + 5.0, false) end
+        if found then return gz, true end
+        Wait(50)
+    until GetGameTimer() > deadline
+    return z, false
+end
+
+local function spawnCrewPed(pool, pos, heading)
+    local hash = pool[math.random(#pool)]
+    local gz, onGround = groundAt(pos.x, pos.y, pos.z)
+    local ped = CreatePed(4, hash, pos.x, pos.y, gz, heading, false, false)
+    SetPedRandomComponentVariation(ped, 0)  -- random outfit within the model
+    SetPedRandomProps(ped)                   -- random hats/glasses
+    FreezeEntityPosition(ped, true)
+    SetBlockingOfNonTemporaryEvents(ped, true)
+    return ped, vector3(pos.x, pos.y, gz), onGround
+end
+
+-- Second chance for peds whose ground lookup failed at spawn: once the player is close
+-- enough for the pit lane collision to be streamed, re-snap every idle crew member.
+local function resnapZone(idx)
+    local data = pitZones[idx]
+    if not data or inPit then return end
+    local deadline = GetGameTimer() + 5000
+    local probe = data.idle[1] or data.crew[1]
+    while probe and DoesEntityExist(probe) and not HasCollisionLoadedAroundEntity(probe) and GetGameTimer() < deadline do
+        Wait(100)
+    end
+    for ped, home in pairs(data.home) do
+        if DoesEntityExist(ped) and not inPit then
+            local found, gz = GetGroundZFor_3dCoord(home.x, home.y, home.z + 1.0, false)
+            if found and math.abs(gz - home.z) > 0.05 then
+                local fixed = vector3(home.x, home.y, gz)
+                SetEntityCoords(ped, fixed.x, fixed.y, fixed.z, false, false, false, false)
+                data.home[ped] = fixed
+                if data.crewHome[ped] then data.crewHome[ped] = fixed end
+                if Config.DebugPrints then print(("[dps-roxwoodracing] re-snapped pit ped to ground (%.2f -> %.2f)"):format(home.z, gz)) end
+            end
+        end
+    end
+end
+
 CreateThread(function()
     Wait(100)
 
     if Config.DebugPrints then print(("[dps-roxwoodracing] Config.PitCrewZones has %d entries"):format(#Config.PitCrewZones)) end
 
-    local modelHash = GetHashKey(Config.PitCrewModel)
-    RequestModel(modelHash)
-    local deadline = GetGameTimer() + 10000
-    while not HasModelLoaded(modelHash) and GetGameTimer() < deadline do Wait(0) end
-    if not HasModelLoaded(modelHash) then
-        print("[dps-roxwoodracing] ERROR: Failed to load ped model '"..tostring(Config.PitCrewModel).."', attempting fallback model")
-        local fallback = GetHashKey('s_m_y_construct_01')
-        RequestModel(fallback)
-        local deadline2 = GetGameTimer() + 8000
-        while not HasModelLoaded(fallback) and GetGameTimer() < deadline2 do Wait(0) end
-        if HasModelLoaded(fallback) then
-            modelHash = fallback
-            if Config.DebugPrints then print("[dps-roxwoodracing] Loaded fallback ped model s_m_y_construct_01") end
-        else
-            print("[dps-roxwoodracing] ERROR: Could not load fallback ped model either; aborting pit crew spawn")
-            return
-        end
+    local pool = buildModelPool()
+    if #pool == 0 then
+        print("[dps-roxwoodracing] ERROR: could not load any pit crew ped model; aborting pit crew spawn")
+        return
     end
 
     for idx, zone in ipairs(Config.PitCrewZones) do
         if Config.DebugPrints then print(("[dps-roxwoodracing] Spawning pit crew for zone %d at %s"):format(idx, tostring(zone.coords))) end
-    pitZones[idx] = { idle = {}, crew = {}, crewIdle = {}, crewHome = {}, spawnHeading = 0.0 }
+        pitZones[idx] = { idle = {}, crew = {}, crewIdle = {}, crewHome = {}, home = {}, spawnHeading = 0.0 }
         local data = pitZones[idx]
 
         -- Support vec4 coords (x,y,z,w) where w is the zone heading; fallback to explicit 'heading'
         local zoneHeading = (zone.coords and zone.coords.w) or zone.heading or 0.0
-    data.spawnHeading = zoneHeading
+        data.spawnHeading = zoneHeading
 
         local r = zone.radius
-    -- Wall lineup offsets (local X along the wall, Y = distance from zone center to wall)
-    -- Evenly spaced: [-3.2, -1.6, 0.0, +1.6, +3.2] to avoid 'pairing' and keep a tidy line.
-    local idleBase = { vector3(-3.2, r, 0.0), vector3(3.2, r, 0.0) }
-    local crewBase = { vector3(-1.6, r, 0.0), vector3(0.0, r, 0.0), vector3(1.6, r, 0.0) }
+        -- Wall lineup offsets (local X along the wall, Y = distance from zone center to wall)
+        -- Evenly spaced: [-3.2, -1.6, 0.0, +1.6, +3.2] to avoid 'pairing' and keep a tidy line.
+        local idleBase = { vector3(-3.2, r, 0.0), vector3(3.2, r, 0.0) }
+        local crewBase = { vector3(-1.6, r, 0.0), vector3(0.0, r, 0.0), vector3(1.6, r, 0.0) }
         local angle = math.rad(-10)
         local cosA, sinA = math.cos(angle), math.sin(angle)
         local moveOffset = vector3(-0.68, -3.17, 0.0)
+        local grounded = 0
 
         -- idle peds
         for i, base in ipairs(idleBase) do
             local x = base.x * cosA - base.y * sinA
             local y = base.x * sinA + base.y * cosA
-            local offs = vector3(x, y, base.z)
-            local pos = zone.coords + offs + moveOffset
-
-            local spawnZ = pos.z
-            local found, gz = GetGroundZFor_3dCoord(pos.x, pos.y, pos.z + 5.0, false)
-            if found then spawnZ = gz end
-
-            local ped = CreatePed(4, modelHash, pos.x, pos.y, spawnZ, zoneHeading, false, false)
-            FreezeEntityPosition(ped, true)
-            SetBlockingOfNonTemporaryEvents(ped, true)
+            local pos = zone.coords + vector3(x, y, base.z) + moveOffset
+            local ped, home, onGround = spawnCrewPed(pool, pos, zoneHeading)
+            if onGround then grounded = grounded + 1 end
             -- Random idle animation from config for variety
             local idleAnims = Config.PitCrewIdleAnims or { "WORLD_HUMAN_STAND_IMPATIENT" }
-            local randomAnim = idleAnims[math.random(1, #idleAnims)]
-            TaskStartScenarioInPlace(ped, randomAnim, 0, true)
+            TaskStartScenarioInPlace(ped, idleAnims[math.random(1, #idleAnims)], 0, true)
             data.idle[i] = ped
+            data.home[ped] = home
         end
 
         -- service peds
@@ -80,22 +150,30 @@ CreateThread(function()
             local y = base.x * sinA + base.y * cosA
             local offs = vector3(x, y, base.z)
             local pos = zone.coords + offs + moveOffset
-
-            local spawnZ = pos.z
-            local found, gz = GetGroundZFor_3dCoord(pos.x, pos.y, pos.z + 5.0, false)
-            if found then spawnZ = gz end
-
-            local ped = CreatePed(4, modelHash, pos.x, pos.y, spawnZ, zoneHeading, false, false)
-            FreezeEntityPosition(ped, true)
-            SetBlockingOfNonTemporaryEvents(ped, true)
+            local ped, home, onGround = spawnCrewPed(pool, pos, zoneHeading)
+            if onGround then grounded = grounded + 1 end
             TaskStartScenarioInPlace(ped, "WORLD_HUMAN_STAND_IMPATIENT", 0, true)
-            data.crew[i]     = ped
-            data.crewIdle[i] = offs + moveOffset
-            data.crewHome[ped] = vector3(pos.x, pos.y, spawnZ)
+            data.crew[i]       = ped
+            data.crewIdle[i]   = offs + moveOffset
+            data.crewHome[ped] = home
+            data.home[ped]     = home
         end
+
+        if Config.DebugPrints then
+            print(("[dps-roxwoodracing] pit zone %d: %d/%d peds placed on found ground"):format(idx, grounded, #idleBase + #crewBase))
+        end
+
+        -- Re-snap to the ground when a player first gets near (collision streamed by then)
+        data.point = lib.points.new({
+            coords = vector3(zone.coords.x, zone.coords.y, zone.coords.z),
+            distance = 120.0,
+            onEnter = function() CreateThread(function() resnapZone(idx) end) end,
+        })
 
         -- Blips disabled per server policy (static blips managed centrally)
     end
+
+    for _, hash in ipairs(pool) do SetModelAsNoLongerNeeded(hash) end
 end)
 
 -- Cleanup on resource stop to avoid orphan peds and blips
@@ -108,6 +186,7 @@ AddEventHandler('onClientResourceStop', function(resName)
         if zone.crew then
             for _, p in ipairs(zone.crew) do if DoesEntityExist(p) then DeleteEntity(p) end end
         end
+        if zone.point then zone.point:remove() end
     end
     -- Blips removed (static blips disabled per policy)
 end)
@@ -127,7 +206,7 @@ end
 --------------------------------------------------------------------------------
 -- 3) AUTOMATIC PIT DETECTION & SERVICE SEQUENCE
 --------------------------------------------------------------------------------
-local inPit = false
+-- inPit is declared at the top of this file (shared with the spawn/resnap code)
 local pitCooldownUntil = 0  -- GetGameTimer timestamp: block re-entry until this time
 local fuelBones = { "door_fuel", "petrolcap", "petroltank" }
 local canModel = GetHashKey("prop_jerrycan_01a")
