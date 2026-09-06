@@ -195,8 +195,8 @@ local function spawn()
       log(('model %s failed to load, skipped'):format(tostring(models[i])))
     end
     if i == 1 then
-      log(('releasing %d cars over %d line(s), one every %d s'):format(
-        count, #all, math.floor((cfg.staggerMs or 30000) / 1000)))
+      log(('releasing %d cars over %d line(s), one every %d s; first line "%s" %d points closed=%s'):format(
+        count, #all, math.floor((cfg.staggerMs or 30000) / 1000), tostring(all[1].name), #all[1].pts, tostring(all[1].closed)))
       startSteering()
     end
     if i < count then

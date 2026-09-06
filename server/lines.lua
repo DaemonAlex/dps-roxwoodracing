@@ -28,7 +28,8 @@ end
 function Lines.Get(name)
   local row = MySQL.single.await(('SELECT points, point_count, closed FROM %s WHERE name = ?'):format(TABLE), { name })
   if not row then return nil end
-  return json.decode(row.points), row.point_count, row.closed == 1
+  local closed = row.closed == 1 or row.closed == true or row.closed == '1'
+  return json.decode(row.points), row.point_count, closed
 end
 
 function Lines.List()
@@ -66,7 +67,9 @@ lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
     if not cache[name] then
       local pts, _, closed = Lines.Get(name)
       if pts then
+        local raw = #pts
         if closed then pts = Lines.TrimClosure(pts, Config.Practice.recordSpacing or 12.0, 40) end
+        print(('[dps-roxwoodracing] practice line "%s": %d points (%d after closure trim), closed=%s'):format(name, raw, #pts, tostring(closed)))
         pts = Lines.Smooth(pts, Config.Practice.smoothRadius or 2, Config.Practice.smoothPasses or 2, closed)
         local ai = Config.Practice.ai or {}
         local set = { { name = name, pts = pts, closed = closed } }
