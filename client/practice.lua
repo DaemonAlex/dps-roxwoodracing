@@ -126,8 +126,14 @@ local function spawn()
     local hash = loadModel(joaat(models[i]), 8000)
     if hash then
       RequestCollisionAtCoord(pt.x, pt.y, pt.z)
-      local veh = CreateVehicle(hash, pt.x, pt.y, pt.z + 0.5, pt.h or 0.0, false, false)
+      local net = cfg.networked ~= false
+      local veh = CreateVehicle(hash, pt.x, pt.y, pt.z + 0.5, pt.h or 0.0, net, false)
       SetEntityAsMissionEntity(veh, true, true)
+      if net then
+        local netId = NetworkGetNetworkIdFromEntity(veh)
+        SetNetworkIdCanMigrate(netId, false)
+        SetNetworkIdExistsOnAllMachines(netId, true)
+      end
       local deadline = GetGameTimer() + 3000
       while not HasCollisionLoadedAroundEntity(veh) and GetGameTimer() < deadline do Wait(50) end
       SetVehicleOnGroundProperly(veh)
@@ -141,11 +147,13 @@ local function spawn()
       local modLiveries = GetNumVehicleMods(veh, 48)
       if modLiveries and modLiveries > 0 then SetVehicleMod(veh, 48, math.random(0, modLiveries - 1), false) end
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
-      SetVehicleEngineOn(veh, true, true, false)
+      SetVehicleEngineOn(veh, true, true, true)
       SetVehicleCanBeVisiblyDamaged(veh, false)
       SetVehicleEngineCanDegrade(veh, false)
-      local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, false, false)
+      local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, net, false)
       SetEntityAsMissionEntity(ped, true, true)
+      if net then SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false) end
+      SetVehicleEngineOn(veh, true, true, true)
       SetBlockingOfNonTemporaryEvents(ped, true)
       SetPedFleeAttributes(ped, 0, false)
       SetPedCanBeDraggedOut(ped, false)

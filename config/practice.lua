@@ -19,6 +19,7 @@ Config.Practice = {
 -- nothing and vanish the moment a race goes live.
 Config.Practice.ai = {
     enabled        = true,
+    networked      = true,           -- networked (owned by this client, no migration): engine audio plays; false = purely local
     lineNames      = nil,            -- nil = every stored line; or a list like { 'main', 'wide' }
     variants       = 4,              -- generated variants per stored line (smooth lateral drift)
     varyAmplitude  = 2.5,            -- max metres a variant drifts either side of the recorded line
