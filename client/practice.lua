@@ -147,8 +147,37 @@ local function spawn()
         SetNetworkIdCanMigrate(netId, false)
         SetNetworkIdExistsOnAllMachines(netId, true)
       end
+      SetEntityLoadCollisionFlag(veh, true)
       local deadline = GetGameTimer() + 3000
       while not HasCollisionLoadedAroundEntity(veh) and GetGameTimer() < deadline do Wait(50) end
+      local vc = GetEntityCoords(veh)
+      log(('car %d: vehicle at %.1f %.1f %.1f (asked %.1f %.1f %.1f), collision %s, %.0f m from player'):format(
+        i, vc.x, vc.y, vc.z, pt.x, pt.y, pt.z, tostring(HasCollisionLoadedAroundEntity(veh)), #(vc - GetEntityCoords(PlayerPedId()))))
+      -- Driver first, before any mods or tuning touch the vehicle.
+      local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, net, false)
+      if ped == 0 then
+        log(('car %d: in-vehicle driver create refused (model loaded=%s), creating beside and seating'):format(i, tostring(HasModelLoaded(driverHash))))
+        ped = CreatePed(4, driverHash, pt.x, pt.y, pt.z + 1.0, pt.h or 0.0, net, false)
+        if ped == 0 then
+          log(('car %d: networked ped create refused too, trying a local ped'):format(i))
+          ped = CreatePed(4, driverHash, pt.x, pt.y, pt.z + 1.0, pt.h or 0.0, false, false)
+        end
+        if ped ~= 0 then
+          SetEntityLoadCollisionFlag(ped, true)
+          local seatDeadline = GetGameTimer() + 2000
+          SetPedIntoVehicle(ped, veh, -1)
+          while GetVehiclePedIsIn(ped, false) ~= veh and GetGameTimer() < seatDeadline do Wait(50); SetPedIntoVehicle(ped, veh, -1) end
+        end
+      end
+      if ped == 0 or GetVehiclePedIsIn(ped, false) ~= veh then
+        log(('car %d: no driver could be seated, car removed'):format(i))
+        if ped ~= 0 and DoesEntityExist(ped) then DeleteEntity(ped) end
+        DeleteEntity(veh)
+        SetModelAsNoLongerNeeded(hash)
+        goto continue
+      end
+      SetEntityAsMissionEntity(ped, true, true)
+      if net then SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false) end
       SetVehicleOnGroundProperly(veh)
       -- Distinct colour per car, random livery where the model has them
       local col = palette[((i - 1) % #palette) + 1]
@@ -165,41 +194,10 @@ local function spawn()
       if cfg.engineSounds and #cfg.engineSounds > 0 then
         ForceVehicleEngineAudio(veh, cfg.engineSounds[math.random(#cfg.engineSounds)])
       end
-      -- Audio LOD hint: HIGH keeps the full engine bank active at range and out of view
-      -- (MAX would fight the game's 5-granular-engine limit with six cars).
       SetAudioVehiclePriority(veh, cfg.audioPriority or 3)
       SetVehicleEngineOn(veh, true, true, true)
       SetVehicleCanBeVisiblyDamaged(veh, false)
       SetVehicleEngineCanDegrade(veh, false)
-      local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, net, false)
-      if ped == 0 then
-        -- Seating at create time can be refused for a far, freshly networked vehicle:
-        -- create the driver beside the car and seat it instead.
-        local vc = GetEntityCoords(veh)
-        log(('car %d: in-vehicle driver create refused (model loaded=%s, dist to player %.0f m, networked=%s), seating a ped instead'):format(
-          i, tostring(HasModelLoaded(driverHash)), #(vc - GetEntityCoords(PlayerPedId())), tostring(net)))
-        if not HasModelLoaded(driverHash) then RequestModel(driverHash); local dl = GetGameTimer() + 3000; while not HasModelLoaded(driverHash) and GetGameTimer() < dl do Wait(50) end end
-        ped = CreatePed(4, driverHash, vc.x, vc.y, vc.z, pt.h or 0.0, net, false)
-        if ped == 0 then
-          log(('car %d: networked ped create refused too, trying a local ped'):format(i))
-          ped = CreatePed(4, driverHash, vc.x, vc.y, vc.z, pt.h or 0.0, false, false)
-        end
-        if ped ~= 0 then
-          local seatDeadline = GetGameTimer() + 2000
-          SetPedIntoVehicle(ped, veh, -1)
-          while GetVehiclePedIsIn(ped, false) ~= veh and GetGameTimer() < seatDeadline do Wait(50); SetPedIntoVehicle(ped, veh, -1) end
-        end
-      end
-      if ped == 0 or GetVehiclePedIsIn(ped, false) ~= veh then
-        log(('car %d: no driver could be seated, car removed'):format(i))
-        if ped ~= 0 and DoesEntityExist(ped) then DeleteEntity(ped) end
-        DeleteEntity(veh)
-        SetModelAsNoLongerNeeded(hash)
-        goto continue
-      end
-      SetEntityAsMissionEntity(ped, true, true)
-      if net then SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false) end
-      SetVehicleEngineOn(veh, true, true, true)
       SetBlockingOfNonTemporaryEvents(ped, true)
       SetPedFleeAttributes(ped, 0, false)
       SetPedCanBeDraggedOut(ped, false)
@@ -207,14 +205,12 @@ local function spawn()
       SetDriverAggressiveness(ped, cfg.aggressiveness or 0.6)
       SetDriverRacingModifier(ped, 1.0)
       SetPedKeepTask(ped, true)
-      -- Full-face helmet: the model's default helmet (motocross lid on the motox peds)
       GivePedHelmet(ped, true, 4096, -1)
       SetPedHelmet(ped, true)
       FreezeEntityPosition(veh, false)
       FreezeEntityPosition(ped, false)
       -- Keep simulating far from the player: without loaded collision an entity is frozen,
       -- and the tower looks over most of the lap.
-      SetEntityLoadCollisionFlag(veh, true)
       SetEntityLoadCollisionFlag(ped, true)
       SetEntityLodDist(veh, cfg.lodDistance or 3000)
       SetEntityLodDist(ped, cfg.lodDistance or 3000)
