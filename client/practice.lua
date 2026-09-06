@@ -172,6 +172,25 @@ local function spawn()
       SetVehicleCanBeVisiblyDamaged(veh, false)
       SetVehicleEngineCanDegrade(veh, false)
       local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, net, false)
+      if ped == 0 then
+        -- Seating at create time can be refused for a far, freshly networked vehicle:
+        -- create the driver beside the car and seat it instead.
+        log(('car %d: in-vehicle driver create refused, seating a ped instead'):format(i))
+        local vc = GetEntityCoords(veh)
+        ped = CreatePed(4, driverHash, vc.x, vc.y, vc.z, pt.h or 0.0, net, false)
+        if ped ~= 0 then
+          local seatDeadline = GetGameTimer() + 2000
+          SetPedIntoVehicle(ped, veh, -1)
+          while GetVehiclePedIsIn(ped, false) ~= veh and GetGameTimer() < seatDeadline do Wait(50); SetPedIntoVehicle(ped, veh, -1) end
+        end
+      end
+      if ped == 0 or GetVehiclePedIsIn(ped, false) ~= veh then
+        log(('car %d: no driver could be seated, car removed'):format(i))
+        if ped ~= 0 and DoesEntityExist(ped) then DeleteEntity(ped) end
+        DeleteEntity(veh)
+        SetModelAsNoLongerNeeded(hash)
+        goto continue
+      end
       SetEntityAsMissionEntity(ped, true, true)
       if net then SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false) end
       SetVehicleEngineOn(veh, true, true, true)
