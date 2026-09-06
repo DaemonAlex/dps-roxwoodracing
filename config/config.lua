@@ -66,6 +66,13 @@ Config.Leaderboard = {
     --  - "total": total race time so far per racer (default)
     --  - "lap": current lap time per racer
     timeMode = "total",
+    -- Where the physical sign stands (from stream/amir_speedway_sign.ymap). When a player
+    -- comes within signRadius the texture replacement is re-applied, so a sign whose
+    -- texture dictionary streamed in after the first attempt still shows the live board.
+    signCoords = vector3(-2869.0, 8427.4, 87.7),
+    signRadius = 300.0,
+    -- Sponsor slides for the three ad panels on the board (paths inside html/).
+    adUrls = { "ads/dps_1.png", "ads/dps_2.png", "ads/dps_3.png" },
 }
 
 
