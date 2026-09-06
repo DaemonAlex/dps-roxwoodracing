@@ -177,7 +177,11 @@ local function spawn()
         goto continue
       end
       SetEntityAsMissionEntity(ped, true, true)
-      if net then SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false) end
+      if net then
+        SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false)
+        -- Ask the server to keep these two beyond the OneSync culling distance
+        TriggerServerEvent('dps-roxwoodracing:practice:keep', { NetworkGetNetworkIdFromEntity(veh), NetworkGetNetworkIdFromEntity(ped) })
+      end
       SetVehicleOnGroundProperly(veh)
       -- Distinct colour per car, random livery where the model has them
       local col = palette[((i - 1) % #palette) + 1]
@@ -324,6 +328,7 @@ startSteering = function()
               log(('car %d stuck twice near point %d, skipping to %d'):format(c.slot, c.prog, at))
             end
             c.stuckAt = c.prog
+            c.stuckCount = (c.stuckCount or 0) + 1
             c.prog = at
             c.lastProg = now
             c.idx = Practice.NextIndex(at, c.n, cfg.aimCornerPts or 2)
@@ -387,6 +392,22 @@ RegisterNetEvent('dps-roxwoodracing:line:saved', function(ok)
   lines = nil
   if armPoint() and nearTrack then CreateThread(spawn) end
 end)
+
+-- /practicestatus: one F8 line per car (where it is, how fast, laps, stuck resets)
+RegisterCommand('practicestatus', function()
+  log(('running=%s nearTrack=%s cars=%d allowed=%s'):format(tostring(running), tostring(nearTrack), #cars, tostring(allowed())))
+  local me = GetEntityCoords(PlayerPedId())
+  for _, c in ipairs(cars) do
+    if DoesEntityExist(c.veh) then
+      local pos = GetEntityCoords(c.veh)
+      log(('car %d %s on "%s": %.0f m away, %.0f km/h, lap %d, point %d/%d, target v %.0f, driver in car=%s, stuck resets=%d'):format(
+        c.slot, c.driver or '?', c.line or '?', #(pos - me), GetEntitySpeed(c.veh) * 3.6, c.laps or 0, c.prog or 0, c.n or 0,
+        (c.speed or 0) * 3.6, tostring(DoesEntityExist(c.ped) and GetVehiclePedIsIn(c.ped, false) == c.veh), c.stuckCount or 0))
+    else
+      log(('car %d %s: vehicle no longer exists'):format(c.slot, c.driver or '?'))
+    end
+  end
+end, false)
 
 AddEventHandler('onResourceStop', function(res)
   if res == GetCurrentResourceName() then despawn() end

@@ -74,7 +74,9 @@ RegisterNetEvent('dps-roxwoodracing:pitcar:result', function(ok, msg)
 end)
 
 RegisterCommand('pitcar', function(_, args)
+  log(('/pitcar %s'):format(table.concat(args, ' ')))
   if not Bridge.HasJob(Config.Job.name, Config.Job.grades.director) then
+    log('refused: not a Race Director on this client')
     Notify(Config.Job.label, Locale('staff_only'), 'error') return
   end
   if args[1] == 'clear' then TriggerServerEvent('dps-roxwoodracing:pitcar:clear') return end
@@ -93,6 +95,7 @@ RegisterCommand('pitcar', function(_, args)
     model = pool[math.random(#pool)]
   end
   local c = GetEntityCoords(ent)
+  log(('sending %s at %.1f %.1f %.1f'):format(model:lower(), c.x, c.y, c.z))
   TriggerServerEvent('dps-roxwoodracing:pitcar:add', model:lower(), c.x, c.y, c.z, GetEntityHeading(ent))
 end, false)
 

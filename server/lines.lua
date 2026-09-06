@@ -88,6 +88,28 @@ lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
   return out
 end)
 
+-- Practice cars are client-owned networked entities that run a 4 km lap; OneSync culls
+-- a networked entity more than ~424 m from every player. Raise the radius for the
+-- caller's own cars and drivers (retried while the network object is still arriving).
+local function keepEntity(src, netId, tries)
+  local ent = NetworkGetEntityFromNetworkId(netId)
+  if ent and ent ~= 0 and DoesEntityExist(ent) then
+    if NetworkGetEntityOwner(ent) == src then
+      SetEntityDistanceCullingRadius(ent, (Config.Practice.ai and Config.Practice.ai.cullRadius) or 6000.0)
+    end
+    return
+  end
+  if tries > 0 then SetTimeout(500, function() keepEntity(src, netId, tries - 1) end) end
+end
+
+RegisterNetEvent('dps-roxwoodracing:practice:keep', function(netIds)
+  local src = source
+  if type(netIds) ~= 'table' or #netIds > 4 then return end
+  for _, netId in ipairs(netIds) do
+    if type(netId) == 'number' and netId > 0 then keepEntity(src, netId, 6) end
+  end
+end)
+
 lib.callback.register('dps-roxwoodracing:line:list', function(src)
   if not Staff.Can(src, 'marshal') then return nil end
   return Lines.List()
