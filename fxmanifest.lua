@@ -30,6 +30,7 @@ client_scripts {
   'client/pit.lua',
   'client/leaderboard.lua',
   'client/recorder.lua',
+  'client/practice.lua',
 }
 
 server_scripts {

@@ -1,0 +1,12 @@
+dofile('shared/practice.lua')
+TEST('Practice.StartIndex spreads cars evenly and NextIndex wraps', function()
+  EQ(Practice.StartIndex(1, 348, 4), 1); EQ(Practice.StartIndex(2, 348, 4), 88)
+  EQ(Practice.StartIndex(4, 348, 4), 262)
+  local j, w = Practice.NextIndex(346, 348, 3); EQ(j, 1); TRUTHY(w, 'wrapped')
+  j, w = Practice.NextIndex(10, 348, 3); EQ(j, 13); FALSY(w)
+end)
+TEST('Practice.Extent finds the centre and reach of a line', function()
+  local pts = { {x=0,y=0,z=0}, {x=100,y=0,z=0}, {x=100,y=100,z=0}, {x=0,y=100,z=0} }
+  local c, r = Practice.Extent(pts)
+  EQ(c.x, 50.0); EQ(c.y, 50.0); TRUTHY(math.abs(r - 70.71) < 0.1, 'radius')
+end)

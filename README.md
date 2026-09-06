@@ -37,6 +37,7 @@ Version 3.0.0. Descended from [max_rox_speedway](https://github.com/MaxSuperTech
 - **Results.** A results overlay with positions, total and best lap times, payouts, gold/silver/bronze styling, "fastest lap" and "most improved" badges, and a note when the purse could not be paid.
 - **Persistent stats.** Wins, podiums, races, earnings, spec and open wins, best lap per layout. `/racestats`.
 - **Practice lines.** A Race Director records the racing line once with `/recordline <name>` (drive one easy lap, run it again to save; points every 12 m, stored in `dps_roxwoodracing_lines`). Lines drive the AI practice cars.
+- **AI practice cars.** When no race is live and a player is near the track, a few cars (random picks from the vanilla spec list) lap the recorded line. They are local to each client, so they cost the server nothing, and they vanish the moment a race goes live. `Config.Practice.ai` sets the count, speed and line name.
 - **LED sign.** A physical leaderboard at the raceway: live positions during a race, best-ever times when idle, refreshed when a record falls. The three ad panels show the DPS sponsor slides in `html/ads/` (`Config.Leaderboard.adUrls`); the texture replacement is re-applied whenever a player comes within `signRadius` of `signCoords`.
 - **Staff.** Marshals end stuck races, clear props and switch the sign; Race Directors set fees and purse; the Owner has the boss menu and bank access.
 

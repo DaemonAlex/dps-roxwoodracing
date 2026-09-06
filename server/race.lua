@@ -147,6 +147,14 @@ local function RefundLobbyFee(lob, lobbyName, pid)
   Rewards.RefundEntryFee(pid, lobbyName, receipt)
 end
 
+-- AI practice cars may run only while no race is live (clients read the global state).
+local function SyncPracticeState()
+  local live = false
+  for _, l in pairs(lobbies) do if l.raceLive then live = true break end end
+  GlobalState.rwPracticeAllowed = not live
+end
+GlobalState.rwPracticeAllowed = true
+
 local function PromoteSign(lobbyName)
   if primaryLobby ~= lobbyName then return end
   primaryLobby = nil
@@ -192,6 +200,7 @@ function Race.EndLobby(lobbyName, reason)
   pendingChoices[lobbyName] = nil
   amirState[lobbyName] = nil
   lobbies[lobbyName] = nil
+  SyncPracticeState()
   TriggerClientEvent('dps-roxwoodracing:setLobbyState', -1, next(lobbies) ~= nil)
   PromoteSign(lobbyName)
 end
@@ -391,6 +400,7 @@ RegisterNetEvent("dps-roxwoodracing:leaveLobby", function()
           end
           amirState[name] = nil
           lobbies[name] = nil
+          SyncPracticeState()
           PromoteSign(name)
         else
           -- member left → update remaining
@@ -482,6 +492,7 @@ local function SpawnRaceVehicles(lobbyName, lob, selected)
   end
   if not table_contains(lob.players, lob.owner) then lob.owner = lob.players[1] end
   lob.raceLive = true
+  SyncPracticeState()
 
   -- Broadcast all race vehicle netIds to all clients (clients ignore if not inRace)
   TriggerClientEvent("dps-roxwoodracing:raceVehicles", -1, spawnedNetIds)
@@ -527,6 +538,7 @@ local function StartOpenRace(lobbyName, lob)
     end
   end
   lob.raceLive = true
+  SyncPracticeState()
   TriggerClientEvent('dps-roxwoodracing:raceVehicles', -1, netIds)
   if Config.Ghosting.enabled and Config.Ghosting.startGhosted then
     lob.ghostActive = true
@@ -987,6 +999,7 @@ FinishRaceIfDone = function(lobbyName, lob)
 
     amirState[lobbyName] = nil
     lobbies[lobbyName] = nil
+  SyncPracticeState()
     TriggerClientEvent("dps-roxwoodracing:setLobbyState", -1, next(lobbies) ~= nil)
 
     -- If this was the primary lobby, promote the next active lobby to drive

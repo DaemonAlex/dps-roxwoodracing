@@ -2,6 +2,7 @@
 local TABLE = 'dps_roxwoodracing_lines'
 Lines = Lines or {}
 Lines.TABLE = TABLE
+local cache = {}
 
 function Lines.Init()
   MySQL.query.await(([[
@@ -46,9 +47,22 @@ RegisterNetEvent('dps-roxwoodracing:line:save', function(name, points)
     return
   end
   Lines.Save(name, points, info, Bridge.GetPlayerIdentifier(src))
+  cache[name] = nil
   print(('[dps-roxwoodracing] practice line "%s" saved: %d points, %s'):format(name, info.count, info.closed and 'closed loop' or 'open'))
   TriggerClientEvent('dps-roxwoodracing:line:saved', src, true,
-    Locale(info.closed and 'line_saved_closed' or 'line_saved_open', name, info.count))
+    Locale(info.closed and 'line_saved_closed' or 'line_saved_open', name, info.count), name)
+end)
+
+-- The line the AI practice cars run (cached until it is re-recorded).
+lib.callback.register('dps-roxwoodracing:practice:line', function(_)
+  local name = (Config.Practice.ai and Config.Practice.ai.lineName) or 'main'
+  if not cache[name] then
+    local pts, _, closed = Lines.Get(name)
+    if pts then cache[name] = { pts = pts, closed = closed } end
+  end
+  local c = cache[name]
+  if not c then return nil end
+  return c.pts, c.closed
 end)
 
 lib.callback.register('dps-roxwoodracing:line:list', function(src)
