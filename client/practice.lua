@@ -146,6 +146,9 @@ local function spawn()
       local modLiveries = GetNumVehicleMods(veh, 48)
       if modLiveries and modLiveries > 0 then SetVehicleMod(veh, 48, math.random(0, modLiveries - 1), false) end
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
+      if cfg.engineSounds and #cfg.engineSounds > 0 then
+        ForceVehicleEngineAudio(veh, cfg.engineSounds[math.random(#cfg.engineSounds)])
+      end
       SetVehicleEngineOn(veh, true, true, true)
       SetVehicleCanBeVisiblyDamaged(veh, false)
       SetVehicleEngineCanDegrade(veh, false)
