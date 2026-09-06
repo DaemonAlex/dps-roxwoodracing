@@ -31,6 +31,7 @@ client_scripts {
   'client/leaderboard.lua',
   'client/recorder.lua',
   'client/practice.lua',
+  'client/pitcars.lua',
 }
 
 server_scripts {
@@ -46,6 +47,7 @@ server_scripts {
   'server/staff.lua',
   'server/leaderboard.lua',
   'server/lines.lua',
+  'server/pitcars.lua',
 }
 
 ui_page 'html/index.html'

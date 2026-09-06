@@ -70,3 +70,11 @@ Config.Practice.ai = {
     -- out: they make the AI flinch at barriers.
     drivingStyle   = 1 + 4 + 16777216,
 }
+
+--- STATIC PIT CARS
+-- Placed in game by a Race Director: park where the car should sit and run /pitcar
+-- (uses that car's model), or run it on foot for a random model. /pitcar clear removes all.
+Config.Practice.pitCars = {
+    spawnDistance = 300.0,
+    models        = nil,   -- random pool when placed on foot; nil = the AI grid models
+}
