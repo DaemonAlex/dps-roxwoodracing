@@ -33,14 +33,15 @@ Config.Practice.ai = {
     engineSounds   = { 'honf1v6eng', 'lg115classicf1v10', 'frf119eng', 'lg59hurv10', 'lambov10', 'lg48lexlfa' },
     spawnDistance  = 300.0,          -- metres beyond the line's extent that counts as "near"
     cruiseSpeed    = 30.0,           -- m/s fallback when a line has no speed profile
-    -- Speed profile from the line's shape (m/s): straights run topSpeed, a bend of
-    -- fullTurnDeg or more over ~36 m runs cornerSpeed, braking starts brakePoints early
-    topSpeed       = 90.0,           -- above any open-wheeler's real top speed: flat out on the straights
-    cornerSpeed    = 26.0,           -- ~94 km/h
-    brakePoints    = 8,              -- points (5 x 12 m) before a corner to start slowing
-    fullTurnDeg    = 50,
-    releaseBehind  = 12,             -- release point: this many points (12 x 12 m) before the player
-    staggerMs      = 35000,          -- one car released every 35 s
+    -- Speed profile from the route geometry (m/s, m/s^2): corner speed = sqrt(aLat x radius),
+    -- braking into bends at aBrake, acceleration out at aAccel, flat out elsewhere.
+    physics = {
+        vmax   = 90.0,               -- above any open-wheeler's real top speed = flat out
+        vmin   = 14.0,               -- hairpin floor
+        aLat   = 22.0,               -- lateral grip (~2.2 g)
+        aBrake = 24.0,               -- braking (~2.4 g)
+        aAccel = 12.0,               -- acceleration out of corners
+    },
     -- Aim point: `aimSeconds` of travel ahead of the car's progress on the line, clamped to
     -- aimMinPts..aimMaxPts points (12 m each). Re-issued when it moves retargetStep points.
     aimSeconds     = 2.0,
@@ -55,7 +56,7 @@ Config.Practice.ai = {
     stuckMs        = 6000,           -- no movement for this long = put it back on the line
     noProgressMs   = 10000,          -- no progress along the line for this long = also stuck (AI reversing at a wall)
     stuckSkipPts   = 8,              -- stuck twice at the same spot: skip this many points past it
-    aggressiveness = 0.9,
+    aggressiveness = 1.0,
     paceVariance   = 0.08,           -- each car's pace = cruiseSpeed x (1 +/- this)
     laneJitter     = 1.0,            -- each car keeps its own lateral bias of up to this (m)
     -- Race awareness: slow toward a car ahead inside this window and aim past it

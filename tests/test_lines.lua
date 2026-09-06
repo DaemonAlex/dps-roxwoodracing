@@ -69,3 +69,23 @@ TEST('Lines.SpeedProfile: fast on the straight, slow in the corner, brakes befor
   EQ(pts[11].v, 48.0)                                    -- not yet braking
   TRUTHY(pts[35].v > 40.0, 'straight again after the corner ' .. pts[35].v)
 end)
+TEST('Lines.SpeedProfilePhysics: flat out on straights, grip-limited in a circle, brakes in and accelerates out', function()
+  local P = { vmax = 90.0, vmin = 12.0, aLat = 22.0, aBrake = 24.0, aAccel = 12.0 }
+  local straight = {}
+  for i = 1, 40 do straight[i] = { x = i * 12.0, y = 0.0, z = 0 } end
+  Lines.SpeedProfilePhysics(straight, false, P)
+  EQ(straight[20].v, 90.0)
+  local circle = {}
+  for i = 1, 60 do local a = (i - 1) / 60 * 2 * math.pi; circle[i] = { x = 50 * math.cos(a), y = 50 * math.sin(a), z = 0 } end
+  Lines.SpeedProfilePhysics(circle, true, P)
+  TRUTHY(math.abs(circle[10].v - math.sqrt(22.0 * 50)) < 1.0, 'grip speed r=50: ' .. circle[10].v)  -- ~33.2
+  local track = {}
+  for i = 1, 40 do track[i] = { x = i * 12.0, y = 0.0, z = 0 } end                      -- long straight
+  for i = 41, 70 do local a = (i - 40) / 30 * math.pi; track[i] = { x = 480 + 50 * math.sin(a), y = 50 - 50 * math.cos(a), z = 0 } end -- r=50 U-turn
+  for i = 71, 110 do track[i] = { x = 480 - (i - 70) * 12.0, y = 100.0, z = 0 } end   -- straight back
+  Lines.SpeedProfilePhysics(track, false, P)
+  TRUTHY(track[5].v > 80, 'early straight flat out ' .. track[5].v)
+  TRUTHY(track[39].v < track[30].v, 'braking before the U-turn')
+  TRUTHY(track[55].v < 40, 'in the U-turn ' .. track[55].v)
+  TRUTHY(track[90].v > track[75].v, 'accelerating out')
+end)

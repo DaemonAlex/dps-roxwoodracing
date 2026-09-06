@@ -131,3 +131,52 @@ function Lines.SpeedProfile(pts, closed, vmax, vmin, brakePts, fullTurnDeg)
   end
   return pts
 end
+
+--- Physics speed profile written to pts[i].v. Corner radius at each point from the
+--- circumcircle of its neighbours; corner speed = sqrt(aLat * r) capped at vmax; then a
+--- backward pass limits speed by braking (aBrake) into each bend and a forward pass by
+--- acceleration (aAccel) out of it. Closed loops are passed around twice. Returns pts.
+function Lines.SpeedProfilePhysics(pts, closed, params)
+  local n = #pts
+  local vmax, vmin = params.vmax or 90.0, params.vmin or 12.0
+  local aLat, aBrake, aAccel = params.aLat or 18.0, params.aBrake or 20.0, params.aAccel or 10.0
+  if n < 3 then for i = 1, n do pts[i].v = vmax end return pts end
+  local function wrap(i)
+    if closed then return ((i - 1) % n) + 1 end
+    if i < 1 then return 1 elseif i > n then return n end
+    return i
+  end
+  local function dist(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) end
+  -- radius from three points: r = abc / (4 * area)
+  for i = 1, n do
+    local a, b, c = pts[wrap(i - 1)], pts[i], pts[wrap(i + 1)]
+    local ab, bc, ca = dist(a, b), dist(b, c), dist(c, a)
+    local area2 = math.abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y))
+    local v = vmax
+    if area2 > 1e-6 then
+      local r = (ab * bc * ca) / (2 * area2)
+      v = math.min(vmax, math.sqrt(aLat * r))
+    end
+    pts[i].v = math.max(vmin, v)
+  end
+  local rounds = closed and 2 or 1
+  for _ = 1, rounds do
+    for i = n, 1, -1 do                     -- braking: v_i <= sqrt(v_next^2 + 2 a d)
+      local j = wrap(i + 1)
+      if j ~= i then
+        local d = dist(pts[i], pts[j])
+        local lim = math.sqrt(pts[j].v ^ 2 + 2 * aBrake * d)
+        if pts[i].v > lim then pts[i].v = lim end
+      end
+    end
+    for i = 1, n do                         -- acceleration: v_i <= sqrt(v_prev^2 + 2 a d)
+      local j = wrap(i - 1)
+      if j ~= i then
+        local d = dist(pts[j], pts[i])
+        local lim = math.sqrt(pts[j].v ^ 2 + 2 * aAccel * d)
+        if pts[i].v > lim then pts[i].v = lim end
+      end
+    end
+  end
+  return pts
+end
