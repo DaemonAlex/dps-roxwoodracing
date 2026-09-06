@@ -80,3 +80,18 @@ function Practice.OffsetPoint(pts, idx, n, offset)
   local rx, ry = dy / len, -dx / len
   return a.x + rx * offset, a.y + ry * offset, a.z
 end
+
+--- Aim distance in points for a given speed: `seconds` of travel ahead, clamped.
+function Practice.AimPoints(speed, seconds, spacing, minPts, maxPts)
+  local pts = math.ceil((speed * seconds) / spacing)
+  if pts < minPts then return minPts end
+  if pts > maxPts then return maxPts end
+  return pts
+end
+
+--- Circular forward distance from a to b on an n-point loop (0..n-1).
+function Practice.Forward(a, b, n)
+  local d = b - a
+  if d < 0 then d = d + n end
+  return d
+end

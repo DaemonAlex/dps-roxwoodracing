@@ -40,9 +40,12 @@ Config.Practice.ai = {
     fullTurnDeg    = 35,
     releaseBehind  = 12,             -- release point: this many points (12 x 12 m) before the player
     staggerMs      = 40000,          -- one car released every 40 s
-    lookahead      = 6,              -- target this many points ahead (6 x 12 m)
-    retargetStep   = 3,              -- advance the target by this many points at a time (fewer task restarts)
-    reachRadius    = 40.0,           -- advance the target when this close to it
+    -- Aim point: `aimSeconds` of travel ahead of the car's progress on the line, clamped to
+    -- aimMinPts..aimMaxPts points (12 m each). Re-issued when it moves retargetStep points.
+    aimSeconds     = 2.0,
+    aimMinPts      = 4,
+    aimMaxPts      = 14,
+    retargetStep   = 2,
     stopRange      = 2.0,
     tickMs         = 250,            -- steering tick while cars are up
     stuckMs        = 8000,           -- no movement for this long = put it back on the line
@@ -57,7 +60,8 @@ Config.Practice.ai = {
         overtakeOffset = 3.5,        -- aim this far to the free side to pass
         passWithin     = 25.0,       -- only start the pass move when the car ahead is this close
     },
-    -- 1 stop for cars, 4 swerve cars, 8 steer round stationary cars, 16 steer round peds, 32 steer round
-    -- objects, 512 may drive into oncoming, 134217728 force straight line (no road nodes)
-    drivingStyle   = 1 + 4 + 8 + 16 + 32 + 512 + 134217728,
+    -- 1 stop for cars, 4 swerve around cars, 512 may drive into oncoming,
+    -- 134217728 force straight line (no road nodes). Object/ped steering flags left out:
+    -- they make the AI flinch at barriers.
+    drivingStyle   = 1 + 4 + 512 + 134217728,
 }

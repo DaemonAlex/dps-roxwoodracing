@@ -175,7 +175,8 @@ local function spawn()
       }
       c.cruise = (pts[idx].v or cfg.cruiseSpeed or 30.0) * c.pace
       c.speed = c.cruise
-      c.idx = Practice.NextIndex(idx, n, cfg.lookahead or 3)
+      c.prog = idx
+      c.idx = Practice.NextIndex(idx, n, cfg.aimMinPts or 4)
       cars[#cars + 1] = c
       driveTo(c)
       c.lastTask = GetGameTimer()
@@ -208,14 +209,25 @@ startSteering = function()
       if mine ~= 0 then others[#others + 1] = mine end
       for _, c in ipairs(cars) do
         if DoesEntityExist(c.veh) and DoesEntityExist(c.ped) then
-          -- pace for this stretch of line: its speed profile x this car's pace factor
-          c.cruise = (c.pts[c.idx].v or cfg.cruiseSpeed or 30.0) * c.pace
-          raceLogic(c, others)
           local pos = GetEntityCoords(c.veh)
-          if Practice.Dist2D(pos, c.pts[c.idx]) <= (cfg.reachRadius or 20.0) then
-            local nxt, wrapped = Practice.NextIndex(c.idx, c.n, cfg.retargetStep or 2)
-            c.idx = nxt
-            if wrapped and not c.closed then placeOnLine(c, c.pts[1]); c.idx = Practice.NextIndex(1, c.n, cfg.lookahead or 3) end
+          -- Progress: step forward while the next point is nearer than the current one.
+          for _ = 1, 6 do
+            local nxt, wrapped = Practice.NextIndex(c.prog, c.n, 1)
+            if wrapped and not c.closed then
+              placeOnLine(c, c.pts[1]); c.prog = 1; c.idx = Practice.NextIndex(1, c.n, cfg.aimMinPts or 4); driveTo(c)
+              break
+            end
+            if Practice.Dist2D(pos, c.pts[nxt]) < Practice.Dist2D(pos, c.pts[c.prog]) then c.prog = nxt else break end
+          end
+          -- pace for this stretch of line: its speed profile x this car's pace factor
+          c.cruise = (c.pts[c.prog].v or cfg.cruiseSpeed or 30.0) * c.pace
+          raceLogic(c, others)
+          -- Aim point scales with speed so the car never overshoots its own target.
+          local aim = Practice.AimPoints(GetEntitySpeed(c.veh), cfg.aimSeconds or 2.0, Config.Practice.recordSpacing or 12.0,
+            cfg.aimMinPts or 4, cfg.aimMaxPts or 14)
+          local want = Practice.NextIndex(c.prog, c.n, aim)
+          if Practice.Forward(c.idx, want, c.n) >= (cfg.retargetStep or 2) then
+            c.idx = want
             driveTo(c)
           end
           local status = GetScriptTaskStatus(c.ped, DRIVE_TASK)
