@@ -146,6 +146,8 @@ local function spawn()
       local modLiveries = GetNumVehicleMods(veh, 48)
       if modLiveries and modLiveries > 0 then SetVehicleMod(veh, 48, math.random(0, modLiveries - 1), false) end
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
+      if cfg.tunePreset and Customs and Customs.ApplyTune then Customs.ApplyTune(veh, cfg.tunePreset) end
+      if (cfg.topSpeedBoost or 0) > 0 then ModifyVehicleTopSpeed(veh, cfg.topSpeedBoost) end
       if cfg.engineSounds and #cfg.engineSounds > 0 then
         ForceVehicleEngineAudio(veh, cfg.engineSounds[math.random(#cfg.engineSounds)])
       end

@@ -33,6 +33,8 @@ Config.Practice.ai = {
     boardEveryMs   = 1000,
     -- Engine audio names streamed by dps-enginesounds; each car takes a random one.
     -- nil = keep the model's own sound.
+    tunePreset     = 'Race',         -- Config.Tune preset applied to each car (max engine/transmission/brakes + turbo)
+    topSpeedBoost  = 25,             -- ModifyVehicleTopSpeed percent
     audioPriority  = 3,              -- SetAudioVehiclePriority: 0 normal, 1 medium, 3 high, 2 max (max starves other cars)
     engineSounds   = { 'honf1v6eng', 'lg115classicf1v10', 'frf119eng', 'lg59hurv10', 'lambov10', 'lg48lexlfa' },
     spawnDistance  = 300.0,          -- metres beyond the line's extent that counts as "near"
@@ -42,9 +44,9 @@ Config.Practice.ai = {
     physics = {
         vmax   = 90.0,               -- above any open-wheeler's real top speed = flat out
         vmin   = 14.0,               -- hairpin floor
-        aLat   = 22.0,               -- lateral grip (~2.2 g)
-        aBrake = 24.0,               -- braking (~2.4 g)
-        aAccel = 12.0,               -- acceleration out of corners
+        aLat   = 26.0,               -- lateral grip (~2.6 g)
+        aBrake = 28.0,               -- braking (~2.8 g)
+        aAccel = 16.0,               -- acceleration out of corners
     },
     releaseBehind  = 35,             -- release point: this many points (35 x 12 m = 420 m) before the player
     releaseSpeed   = 30.0,           -- rolling start (m/s) so cars arrive at pace
