@@ -57,7 +57,7 @@ Config.Practice.ai = {
     stopRange      = 2.0,
     tickMs         = 250,            -- steering tick while cars are up
     stuckMs        = 6000,           -- no movement for this long = put it back on the line
-    noProgressMs   = 10000,          -- no progress along the line for this long = also stuck (AI reversing at a wall)
+    noProgressMs   = 15000,          -- no progress along the line for this long = also stuck (AI reversing at a wall)
     stuckSkipPts   = 8,              -- stuck twice at the same spot: skip this many points past it
     aggressiveness = 1.0,
     paceVariance   = 0.08,           -- each car's pace = cruiseSpeed x (1 +/- this)

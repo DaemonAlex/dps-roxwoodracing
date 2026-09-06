@@ -89,3 +89,12 @@ TEST('Lines.SpeedProfilePhysics: flat out on straights, grip-limited in a circle
   TRUTHY(track[55].v < 40, 'in the U-turn ' .. track[55].v)
   TRUTHY(track[90].v > track[75].v, 'accelerating out')
 end)
+TEST('Lines.TrimClosure drops the overlapping tail of a closed loop', function()
+  local pts = {}
+  for i = 1, 60 do local a = (i - 1) / 60 * 2 * math.pi; pts[i] = { x = 200 * math.cos(a), y = 200 * math.sin(a), z = 0 } end
+  for i = 1, 5 do pts[60 + i] = pts[i] end   -- five points recorded past the start again
+  local out = Lines.TrimClosure(pts, 12.0, 40)
+  EQ(#out, 60)                                -- point 61 coincides with point 1 and goes too
+  local clean = Lines.TrimClosure(out, 12.0, 40)
+  EQ(#clean, 60)                              -- idempotent on a clean loop
+end)

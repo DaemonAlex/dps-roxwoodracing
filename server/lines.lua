@@ -66,6 +66,7 @@ lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
     if not cache[name] then
       local pts, _, closed = Lines.Get(name)
       if pts then
+        if closed then pts = Lines.TrimClosure(pts, Config.Practice.recordSpacing or 12.0, 40) end
         pts = Lines.Smooth(pts, Config.Practice.smoothRadius or 2, Config.Practice.smoothPasses or 2, closed)
         local ai = Config.Practice.ai or {}
         local set = { { name = name, pts = pts, closed = closed } }

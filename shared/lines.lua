@@ -180,3 +180,24 @@ function Lines.SpeedProfilePhysics(pts, closed, params)
   end
   return pts
 end
+
+--- For a closed loop: drop the tail points recorded after the car had already come back
+--- past the start (the overlap), so the last point sits just before the first.
+--- Looks at the last `window` points, keeps up to the one nearest the start, and drops
+--- that one too if it practically coincides with the start. Returns a new table.
+function Lines.TrimClosure(pts, spacing, window)
+  local n = #pts
+  window = math.min(window or 40, n - 3)
+  if n < 6 then return pts end
+  local function d(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) end
+  local best, bestD = n, math.huge
+  for i = n - window, n do
+    local di = d(pts[i], pts[1])
+    if di < bestD then best, bestD = i, di end
+  end
+  local last = best
+  if bestD < (spacing or 12.0) * 0.5 then last = best - 1 end
+  local out = {}
+  for i = 1, last do out[i] = pts[i] end
+  return out
+end

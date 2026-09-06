@@ -218,15 +218,21 @@ startSteering = function()
       for _, c in ipairs(cars) do
         if DoesEntityExist(c.veh) and DoesEntityExist(c.ped) then
           local pos = GetEntityCoords(c.veh)
-          -- Progress: step forward while the next point is nearer than the current one.
+          -- Progress: the nearest of the next few points (never backwards), so a wobble or
+          -- the loop seam cannot pin the tracker behind the car.
+          local bestI, bestD = c.prog, Practice.Dist2D(pos, c.pts[c.prog])
+          local i = c.prog
           for _ = 1, 6 do
-            local nxt, wrapped = Practice.NextIndex(c.prog, c.n, 1)
+            local nxt, wrapped = Practice.NextIndex(i, c.n, 1)
             if wrapped and not c.closed then
               placeOnLine(c, c.pts[1]); c.prog = 1; c.idx = Practice.NextIndex(1, c.n, cfg.aimMinPts or 4); driveTo(c)
-              break
+              bestI = 1; break
             end
-            if Practice.Dist2D(pos, c.pts[nxt]) < Practice.Dist2D(pos, c.pts[c.prog]) then c.prog = nxt; c.lastProg = now else break end
+            i = nxt
+            local di = Practice.Dist2D(pos, c.pts[i])
+            if di < bestD then bestI, bestD = i, di end
           end
+          if bestI ~= c.prog then c.prog = bestI; c.lastProg = now end
           -- pace for this stretch of line: its speed profile x this car's pace factor
           c.cruise = (c.pts[c.prog].v or cfg.cruiseSpeed or 30.0) * c.pace
           raceLogic(c, others)
