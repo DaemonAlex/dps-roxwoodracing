@@ -5,7 +5,7 @@ lua54 'yes'
 name 'dps-roxwoodracing'
 author 'DPS Development (base: max_rox_speedway by MaxSuperTech, rox_speedway by DrCannabis/DaemonAlex)'
 description 'Roxwood Raceway: lobbies, Spec and Open races, pit crews, LED leaderboard, society-funded purses'
-version '3.0.0'
+version '3.1.0'
 
 shared_scripts {
   '@ox_lib/init.lua',
