@@ -19,18 +19,38 @@ TEST('Practice.PrevIndex walks backwards with wrap', function()
   EQ(Practice.PrevIndex(20, 348, 12), 8)
   EQ(Practice.PrevIndex(5, 348, 12), 341)
 end)
-TEST('Practice.Relative and Decide: slow behind a car ahead and aim past its free side', function()
-  local aware = { range = 40.0, lateral = 5.0, minSpeed = 12.0, overtakeOffset = 3.5, passWithin = 25.0 }
+TEST('Practice.Relative, BendAhead and Decide: racecraft', function()
+  local aware = { range = 40.0, lateral = 5.0, minSpeed = 12.0, overtakeOffset = 3.5, passWithin = 25.0,
+    closeGap = 7.0, closeLateral = 2.5, closeFactor = 0.9, slipRange = 25.0, slipLateral = 3.0, slipBonus = 1.06,
+    lateBrakeRange = 20.0, lateBrakeFactor = 1.05, defendRange = 18.0, defendOffset = 2.5 }
   local ahead, lateral = Practice.Relative({x=0,y=0}, {x=0,y=1}, {x=2,y=20})
-  EQ(ahead, 20.0); EQ(lateral, 2.0)   -- +x while facing +y is the right-hand side
-  local speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = 2.0 } }, aware)
-  EQ(speed, 30.0); EQ(off, -3.5)      -- car ahead sits right: hold pace, pass on the left
-  speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = -2.0 } }, aware)
+  EQ(ahead, 20.0); EQ(lateral, 2.0)
+  -- straight: pass on the free side, slipstream + late braking stack
+  local speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = 2.0 } }, aware, { bend = 0 })
+  EQ(off, -3.5); TRUTHY(math.abs(speed - 30.0 * 1.06 * 1.05) < 0.01, tostring(speed))
+  -- right-hander coming: aim for the inside (right) regardless of where the car ahead sits
+  speed, off = Practice.Decide(30.0, { { ahead = 20.0, lateral = -2.0 } }, aware, { bend = 1 })
   EQ(off, 3.5)
-  speed, off = Practice.Decide(30.0, { { ahead = -5.0, lateral = 0.0 }, { ahead = 60.0, lateral = 0.0 } }, aware)
+  -- right on its tail and directly behind: lift to 90%
+  speed = Practice.Decide(30.0, { { ahead = 5.0, lateral = 0.5 } }, aware, { bend = 0 })
+  EQ(speed, 27.0)
+  -- nobody ahead, attacker close behind on a straight: close the door on its side
+  speed, off = Practice.Decide(30.0, { { ahead = -10.0, lateral = 1.5 } }, aware, { bend = 0 })
+  EQ(speed, 30.0); EQ(off, 2.5)
+  -- same attacker but in a corner: no blocking
+  speed, off = Practice.Decide(30.0, { { ahead = -10.0, lateral = 1.5 } }, aware, { bend = -1 })
+  EQ(off, 0.0)
+  -- clear road
+  speed, off = Practice.Decide(30.0, { { ahead = 60.0, lateral = 0.0 } }, aware, { bend = 0 })
   EQ(speed, 30.0); EQ(off, 0.0)
-  speed = Practice.Decide(30.0, { { ahead = 2.0, lateral = 0.0 } }, aware)
-  EQ(speed, 24.0)                     -- right on its tail: lift to 80%
+  -- BendAhead: falling heading = right turn
+  local pts = {}
+  for i = 1, 10 do pts[i] = { h = 90.0 - (i - 1) * 4.0 } end
+  EQ(Practice.BendAhead(pts, 1, 10, 6, false), 1)
+  for i = 1, 10 do pts[i] = { h = 90.0 + (i - 1) * 4.0 } end
+  EQ(Practice.BendAhead(pts, 1, 10, 6, false), -1)
+  for i = 1, 10 do pts[i] = { h = 350.0 + (i - 1) * 0.5 } end
+  EQ(Practice.BendAhead(pts, 1, 10, 6, false), 0)
 end)
 TEST('Practice.OffsetPoint shifts to the right of travel', function()
   local pts = { {x=0,y=0,z=1}, {x=0,y=10,z=1} }
@@ -39,9 +59,9 @@ TEST('Practice.OffsetPoint shifts to the right of travel', function()
 end)
 TEST('Practice.Decide only starts the pass move inside passWithin', function()
   local aware = { range = 50.0, lateral = 6.0, minSpeed = 9.0, overtakeOffset = 3.5, passWithin = 25.0 }
-  local speed, off = Practice.Decide(60.0, { { ahead = 40.0, lateral = 1.0 } }, aware)
+  local speed, off = Practice.Decide(60.0, { { ahead = 40.0, lateral = 1.0 } }, aware, { bend = 0 })
   EQ(off, 0.0); EQ(speed, 60.0)
-  speed, off = Practice.Decide(60.0, { { ahead = 20.0, lateral = 1.0 } }, aware)
+  speed, off = Practice.Decide(60.0, { { ahead = 20.0, lateral = 1.0 } }, aware, { bend = 0 })
   EQ(off, -3.5)
 end)
 TEST('Practice.AimPoints scales with speed and clamps; Forward is circular', function()

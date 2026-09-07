@@ -100,7 +100,8 @@ local function raceLogic(c, others)
       blockers[#blockers + 1] = { ahead = ahead, lateral = lateral }
     end
   end
-  local speed, offset = Practice.Decide(c.cruise, blockers, cfg.aware)
+  local bend = Practice.BendAhead(c.pts, c.prog, c.n, cfg.aware.bendLookahead or 6, c.closed)
+  local speed, offset = Practice.Decide(c.cruise, blockers, cfg.aware, { bend = bend })
   local retask = offset ~= (c.offset or 0)          -- a new aim point needs a new task
   local respeed = math.abs(speed - (c.speed or 0)) > 1.0
   c.speed, c.offset = speed, offset
