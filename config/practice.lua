@@ -34,7 +34,7 @@ Config.Practice.ai = {
     -- Engine audio names streamed by dps-enginesounds; each car takes a random one.
     -- nil = keep the model's own sound.
     tunePreset     = 'Race',         -- Config.Tune preset applied to each car (max engine/transmission/brakes + turbo)
-    topSpeedBoost  = 50,             -- ModifyVehicleTopSpeed percent
+    topSpeedBoost  = 100,            -- ModifyVehicleTopSpeed percent (the only power lever that holds without per-frame calls)
     cullRadius     = 6000.0,         -- server-side distance culling radius for each car + driver (OneSync default ~424 m)
     lodDistance    = 3000,           -- render LOD distance (m) so cars stay visible from the tower
     audioPriority  = 3,              -- SetAudioVehiclePriority: 0 normal, 1 medium, 3 high, 2 max (max starves other cars)
@@ -46,9 +46,9 @@ Config.Practice.ai = {
     physics = {
         vmax   = 90.0,               -- above any open-wheeler's real top speed = flat out
         vmin   = 14.0,               -- hairpin floor
-        aLat   = 30.0,               -- lateral grip (~3.0 g)
-        aBrake = 32.0,               -- braking (~3.2 g)
-        aAccel = 20.0,               -- acceleration out of corners
+        aLat   = 34.0,               -- lateral grip (~3.4 g)
+        aBrake = 36.0,               -- braking (~3.6 g)
+        aAccel = 26.0,               -- acceleration out of corners
     },
     releaseBehind  = 35,             -- release point: this many points (35 x 12 m = 420 m) before the player
     releaseSpeed   = 30.0,           -- rolling start (m/s) so cars arrive at pace
@@ -77,8 +77,17 @@ Config.Practice.ai = {
         minSpeed       = 9.0,        -- never crawl slower than this behind someone
         overtakeOffset = 3.5,        -- aim this far to the free side to pass
         passWithin     = 25.0,       -- only start the pass move when the car ahead is this close
-        closeGap       = 10.0,       -- lift only when this close behind the car ahead
-        closeFactor    = 0.8,        -- ...and only to this fraction of pace
+        closeGap       = 7.0,        -- lift only when this close behind the car ahead
+        closeLateral   = 2.5,        -- ...and only when directly behind it
+        closeFactor    = 0.9,        -- ...and only to this fraction of pace
+        slipRange      = 25.0,       -- slipstream: within this behind a car on the same line
+        slipLateral    = 3.0,
+        slipBonus      = 1.06,       -- ...run this much over pace
+        lateBrakeRange = 20.0,       -- attacking within this: brake later than the profile
+        lateBrakeFactor = 1.05,
+        defendRange    = 18.0,       -- a car this close behind on a straight gets the door closed
+        defendOffset   = 2.5,
+        bendLookahead  = 6,          -- points ahead used to judge the next corner (6 x 12 m)
     },
     -- 1 StopForVehicles, 4 SwerveAroundAllVehicles, 16777216 ForceStraightLine (drive
     -- straight at the aim point, no road-node routing). Object/ped steering flags left
@@ -102,9 +111,9 @@ Config.Practice.mode = {
     maxLapMs      = 600000,
     keepLaps      = 5,       -- rolling average over this many laps
     -- AI pace against the best rolling average among players on the track:
-    defaultPace   = 0.95,    -- grid pace when nobody on the track has an average yet
-    margin        = 0.05,    -- AI aims to lap this fraction quicker than that average
+    defaultPace   = 1.0,     -- grid pace when nobody on the track has an average yet
+    margin        = 0.08,    -- AI aims to lap this fraction quicker than that average
     minPace       = 0.80,
-    maxPace       = 1.20,    -- the AI may run beyond the physics profile; the human edge is the edge
+    maxPace       = 1.35,    -- the AI may run beyond the physics profile; the human edge is the edge
     clearMargin   = 60.0,    -- players within line extent + this (m) are moved off at GO
 }

@@ -53,24 +53,55 @@ function Practice.Relative(pos, fwd, other)
   return ahead, lateral
 end
 
---- Race decision against the nearest car ahead inside the awareness window.
---- Returns speed to run and the lateral aim offset (m, +right) to pass with.
-function Practice.Decide(cruise, blockers, aware)
-  local best
-  for _, b in ipairs(blockers) do
+--- Which way the line bends over the next `k` points: +1 right, -1 left, 0 straight.
+--- GTA headings grow counter-clockwise, so a right turn is a falling heading.
+function Practice.BendAhead(pts, prog, n, k, closed, deadband)
+  local h0 = pts[prog].h
+  local j = prog + (k or 6)
+  if j > n then if closed then j = j - n else j = n end end
+  local h1 = pts[j].h
+  if not h0 or not h1 then return 0 end
+  local d = (h1 - h0 + 540.0) % 360.0 - 180.0
+  local db = deadband or 6.0
+  if d < -db then return 1 elseif d > db then return -1 end
+  return 0
+end
+
+--- Racecraft against the cars around this one. `others` = { ahead (m, negative = behind),
+--- lateral (m, +right) }. `ctx.bend` = +1/-1/0 for the next corner. Returns speed and the
+--- lateral aim offset (m, +right). Attack the inside of the next corner, slipstream and
+--- brake late behind a car, lift only when right on its tail, defend the attacker's side
+--- on a straight.
+function Practice.Decide(cruise, others, aware, ctx)
+  ctx = ctx or {}
+  local front, back
+  for _, b in ipairs(others) do
     if b.ahead > 1.0 and b.ahead <= aware.range and math.abs(b.lateral) <= aware.lateral then
-      if not best or b.ahead < best.ahead then best = b end
+      if not front or b.ahead < front.ahead then front = b end
+    elseif b.ahead < -1.0 and -b.ahead <= (aware.defendRange or 18.0) and math.abs(b.lateral) <= aware.lateral then
+      if not back or b.ahead > back.ahead then back = b end
     end
   end
-  if not best then return cruise, 0.0 end
-  -- Racing, not queueing: hold pace and move to the free side to pass; only lift when
-  -- right on the car ahead (closeGap), and then only to a fraction of pace.
   local speed, offset = cruise, 0.0
-  if best.ahead <= (aware.passWithin or aware.range) then
-    offset = best.lateral >= 0 and -aware.overtakeOffset or aware.overtakeOffset
-  end
-  if best.ahead <= (aware.closeGap or 10.0) then
-    speed = math.max(aware.minSpeed, cruise * (aware.closeFactor or 0.8))
+  if front then
+    if front.ahead <= (aware.passWithin or aware.range) then
+      if (ctx.bend or 0) ~= 0 then
+        offset = ctx.bend * aware.overtakeOffset                       -- inside of the next corner
+      else
+        offset = front.lateral >= 0 and -aware.overtakeOffset or aware.overtakeOffset   -- free side
+      end
+    end
+    if front.ahead <= (aware.slipRange or 0) and math.abs(front.lateral) <= (aware.slipLateral or 3.0) then
+      speed = cruise * (aware.slipBonus or 1.0)                         -- tow along the straight
+    end
+    if front.ahead <= (aware.lateBrakeRange or 0) then
+      speed = speed * (aware.lateBrakeFactor or 1.0)                     -- brake later than the profile says
+    end
+    if front.ahead <= (aware.closeGap or 10.0) and math.abs(front.lateral) <= (aware.closeLateral or 2.5) then
+      speed = math.min(speed, math.max(aware.minSpeed, cruise * (aware.closeFactor or 0.8)))
+    end
+  elseif back and (ctx.bend or 0) == 0 then
+    offset = (back.lateral >= 0 and 1 or -1) * (aware.defendOffset or 2.5)   -- close the door
   end
   return speed, offset
 end
