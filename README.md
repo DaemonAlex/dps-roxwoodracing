@@ -352,7 +352,7 @@ docs/           install.md, superpowers/specs, superpowers/plans
 ./tools/check.sh
 ```
 
-Syntax-checks every Lua file with `luac5.4 -p`, then runs `tests/run.lua`, which loads `tests/stubs.lua` (fake `exports`, `MySQL`, `GetResourceState`, events) and every `tests/test_*.lua`. Needs Lua 5.4 on the machine. Covered: config loading, bridge detection and money/job calls, client and server integrations, validation, plates, tune, payouts (purse covered / short / solo), ranking, rewards flows, stats migration, catalogue building, ownership checks, staff permissions and caps, line validation, smoothing, closure trim, variants and speed profile, aim distance and curvature caps, racecraft decisions, pace fitting and lap formatting. 63 tests.
+Syntax-checks every Lua file with `luac5.4 -p`, then runs `tests/run.lua`, which loads `tests/stubs.lua` (fake `exports`, `MySQL`, `GetResourceState`, events) and every `tests/test_*.lua`. Needs Lua 5.4 on the machine. Covered: config loading, bridge detection and money/job calls, client and server integrations, validation, plates, tune, payouts (purse covered / short / solo), ranking, rewards flows, stats migration, catalogue building, ownership checks, staff permissions and caps, line validation, smoothing, closure trim, variants and speed profile, aim distance and curvature caps, racecraft decisions, pace fitting and lap formatting. 62 tests.
 
 ## Security model
 
