@@ -184,10 +184,22 @@ local function spawn()
         goto continue
       end
       SetEntityAsMissionEntity(ped, true, true)
+      local vehNet, pedNet = 0, 0
       if net then
-        SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(ped), false)
-        -- Ask the server to keep these two beyond the OneSync culling distance
-        TriggerServerEvent('dps-roxwoodracing:practice:keep', { NetworkGetNetworkIdFromEntity(veh), NetworkGetNetworkIdFromEntity(ped) })
+        -- The network ids exist only once the objects are registered; wait for them before
+        -- asking the server to keep the pair beyond the OneSync culling distance.
+        local netDeadline = GetGameTimer() + 5000
+        while (vehNet == 0 or pedNet == 0) and GetGameTimer() < netDeadline do
+          vehNet = NetworkGetEntityIsNetworked(veh) and NetworkGetNetworkIdFromEntity(veh) or 0
+          pedNet = NetworkGetEntityIsNetworked(ped) and NetworkGetNetworkIdFromEntity(ped) or 0
+          if vehNet == 0 or pedNet == 0 then Wait(100) end
+        end
+        if pedNet ~= 0 then SetNetworkIdCanMigrate(pedNet, false) end
+        if vehNet ~= 0 and pedNet ~= 0 then
+          TriggerServerEvent('dps-roxwoodracing:practice:keep', { vehNet, pedNet })
+        else
+          log(('car %d: no network id after 5 s (veh %d, ped %d); it will be culled beyond ~424 m'):format(i, vehNet, pedNet))
+        end
       end
       SetVehicleOnGroundProperly(veh)
       -- Distinct colour per car, random livery where the model has them
@@ -228,7 +240,7 @@ local function spawn()
       local v = cfg.paceVariance or 0.08
       local j = cfg.laneJitter or 1.5
       local c = {
-        veh = veh, ped = ped, slot = i, line = L.name, pts = pts, n = n, closed = L.closed,
+        veh = veh, ped = ped, vehNet = vehNet, pedNet = pedNet, slot = i, line = L.name, pts = pts, n = n, closed = L.closed,
         lastMove = GetGameTimer(), offset = 0.0,
         bias = -j + 2 * j * math.random(),
         pace = 1 - v + 2 * v * math.random(),
@@ -276,7 +288,21 @@ startSteering = function()
         if pv ~= 0 then others[#others + 1] = pv end
       end
       for _, c in ipairs(cars) do
+        if not DoesEntityExist(c.veh) and (c.vehNet or 0) ~= 0 and NetworkDoesNetworkIdExist(c.vehNet) then
+          -- The local handle died (culled and re-sent by the server); pick the car back up by id.
+          c.veh = NetToVeh(c.vehNet)
+          if (c.pedNet or 0) ~= 0 and NetworkDoesNetworkIdExist(c.pedNet) then c.ped = NetToPed(c.pedNet) end
+          if DoesEntityExist(c.veh) and DoesEntityExist(c.ped) then
+            log(('car %d: re-bound to net %d after a culling round trip'):format(c.slot, c.vehNet))
+            driveTo(c); c.lastTask = now
+            TriggerServerEvent('dps-roxwoodracing:practice:keep', { c.vehNet, c.pedNet })
+          end
+        end
         if DoesEntityExist(c.veh) and DoesEntityExist(c.ped) then
+          if (c.vehNet or 0) ~= 0 and now - (c.lastKeep or 0) > 30000 then
+            c.lastKeep = now
+            TriggerServerEvent('dps-roxwoodracing:practice:keep', { c.vehNet, c.pedNet })
+          end
           local pos = GetEntityCoords(c.veh)
           -- Progress: the nearest of the next few points (never backwards), so a wobble or
           -- the loop seam cannot pin the tracker behind the car.
@@ -510,7 +536,8 @@ RegisterCommand('practicestatus', function()
         c.slot, c.driver or '?', c.line or '?', #(pos - me), GetEntitySpeed(c.veh) * 3.6, c.laps or 0, c.prog or 0, c.n or 0,
         (c.speed or 0) * 3.6, tostring(DoesEntityExist(c.ped) and GetVehiclePedIsIn(c.ped, false) == c.veh), c.stuckCount or 0))
     else
-      log(('car %d %s: vehicle no longer exists'):format(c.slot, c.driver or '?'))
+      log(('car %d %s: vehicle handle gone; net %s %s'):format(c.slot, c.driver or '?', tostring(c.vehNet),
+        (c.vehNet or 0) ~= 0 and (NetworkDoesNetworkIdExist(c.vehNet) and 'still exists on the network (will re-bind)' or 'gone from the network too') or 'was never networked'))
     end
   end
 end, false)

@@ -91,22 +91,33 @@ end)
 -- Practice cars are client-owned networked entities that run a 4 km lap; OneSync culls
 -- a networked entity more than ~424 m from every player. Raise the radius for the
 -- caller's own cars and drivers (retried while the network object is still arriving).
-local function keepEntity(src, netId, tries)
+local function keepEntity(src, netId, tries, first)
+  first = first or tries
   local ent = NetworkGetEntityFromNetworkId(netId)
   if ent and ent ~= 0 and DoesEntityExist(ent) then
-    if NetworkGetEntityOwner(ent) == src then
+    local owner = NetworkGetEntityOwner(ent)
+    if owner == src then
       SetEntityDistanceCullingRadius(ent, (Config.Practice.ai and Config.Practice.ai.cullRadius) or 6000.0)
+      if first - tries > 2 then
+        print(('[dps-roxwoodracing] practice keep: net %d kept after %.1f s'):format(netId, (first - tries) * 0.5))
+      end
+    else
+      print(('[dps-roxwoodracing] practice keep: net %d owned by %s, not %s; culling radius left alone'):format(netId, tostring(owner), tostring(src)))
     end
     return
   end
-  if tries > 0 then SetTimeout(500, function() keepEntity(src, netId, tries - 1) end) end
+  if tries > 0 then
+    SetTimeout(500, function() keepEntity(src, netId, tries - 1, first) end)
+  else
+    print(('[dps-roxwoodracing] practice keep: net %d never appeared on the server (%d s), car will be culled beyond ~424 m'):format(netId, first // 2))
+  end
 end
 
 RegisterNetEvent('dps-roxwoodracing:practice:keep', function(netIds)
   local src = source
   if type(netIds) ~= 'table' or #netIds > 4 then return end
   for _, netId in ipairs(netIds) do
-    if type(netId) == 'number' and netId > 0 then keepEntity(src, netId, 6) end
+    if type(netId) == 'number' and netId > 0 then keepEntity(src, netId, 40) end
   end
 end)
 
