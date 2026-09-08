@@ -48,7 +48,7 @@ Config.Practice.ai = {
         lossantos = {
             models       = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' },
             engineSounds = false,
-            physics      = { vmax = 92.0, vmin = 18.0, aLat = 25.0, aBrake = 30.0, aAccel = 26.0 },
+            physics      = { vmax = 92.0, vmin = 18.0, aLat = 17.0, aBrake = 24.0, aAccel = 24.0 },
             cruiseSpeed  = 50.0,
             tunePreset   = 'Race',
             topSpeedBoost = 10,
@@ -57,7 +57,7 @@ Config.Practice.ai = {
                 range = 40.0, lateral = 6.0, minSpeed = 12.0, overtakeOffset = 3.2, passWithin = 30.0,
                 closeGap = 7.0, closeLateral = 2.5, closeFactor = 0.92,
                 slipRange = 30.0, slipLateral = 3.0, slipBonus = 1.09,
-                lateBrakeRange = 25.0, lateBrakeFactor = 1.12,
+                lateBrakeRange = 25.0, lateBrakeFactor = 1.04,
                 defendRange = 20.0, defendOffset = 2.5, bendLookahead = 5,
             },
             aimSeconds   = 1.6,
