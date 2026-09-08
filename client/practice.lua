@@ -80,8 +80,17 @@ local function despawn()
 end
 
 
+-- A track may list several car sets ({ label, models, engineSounds }); one is drawn each
+-- time the grid forms, so the field changes from one visit to the next.
+local gridSet = nil
+local function pickSet()
+  local sets = cfg.sets
+  if type(sets) == 'table' and #sets > 0 then gridSet = sets[math.random(#sets)] else gridSet = nil end
+  return gridSet
+end
+
 local function pickModels(n)
-  local pool = cfg.models
+  local pool = (gridSet and gridSet.models) or cfg.models
   if not pool or #pool == 0 then
     pool = {}
     for _, v in ipairs(Config.SpecFallbackVehicles or {}) do pool[#pool + 1] = v.model end
@@ -141,6 +150,8 @@ local function spawn()
   if not all then log('no track here, nothing to run') return end
   running = true
   local count = cfg.cars or 4
+  local set = pickSet()
+  if set then log(('grid set: %s'):format(set.label or '?')) end
   local models = pickModels(count)
   local driverHash = loadModel(joaat(cfg.driverModel or 'a_m_y_motox_01'), 5000)
   if not driverHash then log('driver model failed to load') running = false return end
@@ -243,6 +254,7 @@ local function spawn()
       if cfg.tunePreset and Customs and Customs.ApplyTune then Customs.ApplyTune(veh, cfg.tunePreset) end
       if (cfg.topSpeedBoost or 0) > 0 then ModifyVehicleTopSpeed(veh, cfg.topSpeedBoost) end
       local banks = cfg.engineSounds
+      if gridSet and gridSet.engineSounds ~= nil then banks = gridSet.engineSounds end
       if banks and #banks > 0 then
         ForceVehicleEngineAudio(veh, banks[math.random(#banks)])
       end
