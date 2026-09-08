@@ -43,6 +43,15 @@ Config.Practice.ai = {
     -- track without an entry runs `models` / `engineSounds`. Sounds are library bank names
     -- from dps-racesounds; a track listed here with no sounds keeps each car's own bank.
     perTrack = {
+        -- Roxwood Raceway (track id = its first line, 'main'): open-wheelers, Hypercars, GT3, NASCAR in rotation
+        main = {
+            sets = {
+                { label = 'Open Wheel', models = { 'openwheel1', 'openwheel2', 'formula', 'formula2' } },
+                { label = 'Hypercar',   models = { 'alplmu2025', 'amrlmh', 'bmwlmu2025', 'fer49p2025', 'peulmu2025', 'toyotaGR2025' }, engineSounds = false },
+                { label = 'GT3',        models = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' }, engineSounds = false },
+                { label = 'NASCAR',     models = { 'nextgen', 'camrynascar', 'fusionnas', 'hotring' }, engineSounds = { 'lg44nascarv8' } },
+            },
+        },
         -- Los Santos Circuit (Vinewood track): GT3 grid, each car on its own engine bank
         -- (engineSounds = false keeps the model's own sound), road-course limits.
         lossantos = {
@@ -84,6 +93,8 @@ Config.Practice.ai = {
             sets = {
                 { label = 'NASCAR',    models = { 'nextgen', 'camrynascar', 'fusionnas' }, engineSounds = { 'lg44nascarv8' } },
                 { label = 'Stock Car', models = { 'nextgen', 'camrynascar', 'fusionnas', 'hotring' }, engineSounds = { 'lg44nascarv8' } },
+                { label = 'Hypercar',  models = { 'alplmu2025', 'amrlmh', 'bmwlmu2025', 'fer49p2025', 'peulmu2025', 'toyotaGR2025' }, engineSounds = false },
+                { label = 'GT3',       models = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' }, engineSounds = false },
             },
             models       = { 'nextgen', 'camrynascar', 'fusionnas' },
             engineSounds = { 'lg44nascarv8' },
