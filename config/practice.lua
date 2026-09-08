@@ -35,7 +35,7 @@ Config.Practice.ai = {
     networked      = true,           -- networked (owned by this client, no migration): engine audio plays; false = purely local
     lineNames      = nil,            -- nil = every stored line; or a list like { 'main', 'wide' }
     variants       = 4,              -- generated variants per stored line (smooth lateral drift)
-    varyAmplitude  = 1.5,            -- max metres a variant drifts either side of the recorded line
+    varyAmplitude  = 0.8,            -- max metres a variant drifts either side of the recorded line
     cars           = 6,
     -- Open-wheel grid (vanilla). nil = random picks from Config.SpecFallbackVehicles.
     models         = { 'openwheel1', 'openwheel2', 'formula', 'formula2' },
@@ -48,11 +48,11 @@ Config.Practice.ai = {
             engineSounds = { 'lg44nascarv8' },
             -- Stock cars on a short oval: lower cornering and braking limits than the
             -- open-wheelers, gentler aim, a slower fallback cruise.
-            physics      = { vmax = 72.0, vmin = 22.0, aLat = 14.0, aBrake = 14.0, aAccel = 8.0 },
-            cruiseSpeed  = 50.0,
-            aimMaxTurnDeg = 15,
-            aimMaxCut    = 0.8,
-            laneJitter   = 0.4,
+            physics      = { vmax = 78.0, vmin = 26.0, aLat = 20.0, aBrake = 18.0, aAccel = 10.0 },
+            cruiseSpeed  = 55.0,
+            aimMaxTurnDeg = 18,
+            aimMaxCut    = 0.6,
+            laneJitter   = 0.2,
         },
     },
     driverModel    = 'a_m_y_motox_01',
@@ -88,7 +88,7 @@ Config.Practice.ai = {
     aimMinPts      = 4,
     aimMaxPts      = 14,
     aimMaxTurnDeg  = 25,             -- never aim past where the line has bent more than this
-    aimMaxCut      = 1.5,            -- the straight to the aim point may leave the line by at most this (m)
+    aimMaxCut      = 1.0,            -- the straight to the aim point may leave the line by at most this (m)
     aimCornerPts   = 2,              -- shortest aim inside a bend (points)
     retargetStep   = 2,
     stopRange      = 2.0,
@@ -98,13 +98,13 @@ Config.Practice.ai = {
     stuckSkipPts   = 8,              -- stuck twice at the same spot: skip this many points past it
     aggressiveness = 1.0,
     paceVariance   = 0.08,           -- each car's pace = cruiseSpeed x (1 +/- this)
-    laneJitter     = 1.0,            -- each car keeps its own lateral bias of up to this (m)
+    laneJitter     = 0.3,            -- each car keeps its own lateral bias of up to this (m)
     -- Race awareness: slow toward a car ahead inside this window and aim past it
     aware = {
         range          = 35.0,       -- metres ahead to look
         lateral        = 6.0,        -- metres either side that counts as "in my way"
         minSpeed       = 9.0,        -- never crawl slower than this behind someone
-        overtakeOffset = 3.5,        -- aim this far to the free side to pass
+        overtakeOffset = 2.5,        -- aim this far to the free side to pass
         passWithin     = 25.0,       -- only start the pass move when the car ahead is this close
         closeGap       = 7.0,        -- lift only when this close behind the car ahead
         closeLateral   = 2.5,        -- ...and only when directly behind it
@@ -142,7 +142,7 @@ Config.Practice.mode = {
     -- AI pace against the best rolling average among players on the track:
     defaultPace   = 1.0,     -- grid pace when nobody on the track has an average yet
     margin        = 0.08,    -- AI aims to lap this fraction quicker than that average
-    minPace       = 0.80,
+    minPace       = 1.00,
     maxPace       = 1.35,    -- the AI may run beyond the physics profile; the human edge is the edge
     clearMargin   = 60.0,    -- players within line extent + this (m) are moved off at GO
 }
