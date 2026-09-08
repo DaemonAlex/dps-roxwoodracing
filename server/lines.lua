@@ -90,13 +90,15 @@ lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
         print(('[dps-roxwoodracing] practice line "%s": %d points (%d after closure trim), closed=%s'):format(name, raw, #pts, tostring(closed)))
         pts = Lines.Smooth(pts, Config.Practice.smoothRadius or 2, Config.Practice.smoothPasses or 2, closed)
         local ai = Config.Practice.ai or {}
-        local set = { { name = name, pts = pts, closed = closed } }
-        for k = 1, (ai.variants or 0) do
-          set[#set + 1] = { name = ('%s#%d'):format(name, k), closed = closed,
-            pts = Lines.Vary(pts, k * 7919 + #pts, ai.varyAmplitude or 2.5, closed) }
-        end
         local per = ai.perTrack and ai.perTrack[trackFor(name) or '']
         local physics = (per and per.physics) or ai.physics or {}
+        local variants = (per and per.variants) or ai.variants or 0
+        local amplitude = (per and per.varyAmplitude) or ai.varyAmplitude or 2.5
+        local set = { { name = name, pts = pts, closed = closed } }
+        for k = 1, variants do
+          set[#set + 1] = { name = ('%s#%d'):format(name, k), closed = closed,
+            pts = Lines.Vary(pts, k * 7919 + #pts, amplitude, closed) }
+        end
         for _, L in ipairs(set) do
           Lines.SpeedProfilePhysics(L.pts, closed, physics)
         end
