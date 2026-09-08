@@ -86,8 +86,15 @@ local function pickModels(n)
     pool = {}
     for _, v in ipairs(Config.SpecFallbackVehicles or {}) do pool[#pool + 1] = v.model end
   end
-  local out = {}
-  for i = 1, n do out[i] = pool[math.random(#pool)] end
+  -- Deal the pool like a deck: no model repeats until every model has been used once.
+  local out, deck = {}, {}
+  for i = 1, n do
+    if #deck == 0 then
+      for _, m in ipairs(pool) do deck[#deck + 1] = m end
+      for k = #deck, 2, -1 do local j = math.random(k); deck[k], deck[j] = deck[j], deck[k] end
+    end
+    out[i] = table.remove(deck)
+  end
   return out
 end
 
