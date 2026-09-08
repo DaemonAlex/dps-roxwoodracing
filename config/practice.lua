@@ -48,7 +48,7 @@ Config.Practice.ai = {
             engineSounds = { 'lg44nascarv8' },
             -- Stock cars on a short oval: lower cornering and braking limits than the
             -- open-wheelers, gentler aim, a slower fallback cruise.
-            physics      = { vmax = 95.0, vmin = 28.0, aLat = 15.0, aBrake = 18.0, aAccel = 24.0 },
+            physics      = { vmax = 100.0, vmin = 30.0, aLat = 15.0, aBrake = 18.0, aAccel = 32.0 },
             -- Racing each other: more pace spread, a stronger tow, later braking on attack,
             -- a wider pass move and a firmer door on defence.
             paceVariance = 0.12,
@@ -67,7 +67,7 @@ Config.Practice.ai = {
             -- Stock power: no Race tune and no top-speed boost on a 1,500 kg car, the grip
             -- cannot carry it. Longer, smoother aim so the driver stops sawing at the wheel.
             tunePreset   = Race,
-            topSpeedBoost = 0,
+            topSpeedBoost = 15,
             aimSeconds   = 1.4,
             aimMinPts    = 3,
             aimCornerPts = 2,
