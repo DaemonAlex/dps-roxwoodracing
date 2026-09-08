@@ -71,8 +71,14 @@ local function despawn()
   cars = {}
 end
 
+local function trackCfg(key)
+  local per = cfg.perTrack and curTrack and cfg.perTrack[curTrack.id]
+  if per and per[key] ~= nil then return per[key] end
+  return cfg[key]
+end
+
 local function pickModels(n)
-  local pool = cfg.models
+  local pool = trackCfg('models')
   if not pool or #pool == 0 then
     pool = {}
     for _, v in ipairs(Config.SpecFallbackVehicles or {}) do pool[#pool + 1] = v.model end
@@ -224,8 +230,9 @@ local function spawn()
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
       if cfg.tunePreset and Customs and Customs.ApplyTune then Customs.ApplyTune(veh, cfg.tunePreset) end
       if (cfg.topSpeedBoost or 0) > 0 then ModifyVehicleTopSpeed(veh, cfg.topSpeedBoost) end
-      if cfg.engineSounds and #cfg.engineSounds > 0 then
-        ForceVehicleEngineAudio(veh, cfg.engineSounds[math.random(#cfg.engineSounds)])
+      local banks = trackCfg('engineSounds')
+      if banks and #banks > 0 then
+        ForceVehicleEngineAudio(veh, banks[math.random(#banks)])
       end
       SetAudioVehiclePriority(veh, cfg.audioPriority or 3)
       SetVehicleEngineOn(veh, true, true, true)

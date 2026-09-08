@@ -39,6 +39,15 @@ Config.Practice.ai = {
     cars           = 6,
     -- Open-wheel grid (vanilla). nil = random picks from Config.SpecFallbackVehicles.
     models         = { 'openwheel1', 'openwheel2', 'formula', 'formula2' },
+    -- Per-track grids, by track id (the base name of the track's first recorded line). A
+    -- track without an entry runs `models` / `engineSounds`. Sounds are library bank names
+    -- from dps-racesounds; a track listed here with no sounds keeps each car's own bank.
+    perTrack = {
+        grandsenora = {
+            models       = { 'nextgen', 'camrynascar', 'fusionnas' },
+            engineSounds = { 'lg44nascarv8' },
+        },
+    },
     driverModel    = 'a_m_y_motox_01',
     -- Driver names shown on the LED sign while practice runs (5 characters read best)
     driverNames    = { 'SANDS', 'PERRO', 'ROX', 'DUNE', 'PIER', 'SURF', 'GULL', 'TIDE' },
