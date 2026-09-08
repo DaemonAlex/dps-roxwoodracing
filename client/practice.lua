@@ -12,7 +12,7 @@ local running, nearTrack, isHost = false, false, false
 local lines = nil           -- { { name, pts, closed }, ... }
 local tracks = nil          -- Practice.Cluster over lines: { { id, centre, radius, lines }, ... }
 local curTrack = nil        -- the track this client is near (nil = none)
-local trackPoints, startZones = {}, {}
+local trackPoints, startZones, trackBlips = {}, {}, {}
 local startSteering
 local targetLap = nil                         -- best rolling average on the track (ms), from the server
 local paceMult = mode.defaultPace or 0.85     -- grid pace multiplier
@@ -437,13 +437,38 @@ end
 -- One point per track; enter = that track's cars up, leave = cars gone. Each track also
 -- gets a start line at the first point of its main line: crossing it starts the lap
 -- clock, the next crossing completes the lap.
+local function homeTrack(ts)
+  local sign = Config.Leaderboard and Config.Leaderboard.signCoords
+  if not sign then return ts[1] end
+  local best, bestD
+  for _, t in ipairs(ts) do
+    local d = Practice.Dist2D(t.centre, sign)
+    if not bestD or d < bestD then best, bestD = t, d end
+  end
+  return best
+end
+
+local function trackLabel(id)
+  local names = (Config.Practice.trackBlips or {}).names or {}
+  return names[id] or (id:sub(1, 1):upper() .. id:sub(2) .. ' Raceway')
+end
+
 local function armTracks()
   for _, p in ipairs(trackPoints) do p:remove() end
   for _, z in ipairs(startZones) do z:remove() end
-  trackPoints, startZones = {}, {}
+  for _, b in ipairs(trackBlips) do if DoesBlipExist(b) then RemoveBlip(b) end end
+  trackPoints, startZones, trackBlips = {}, {}, {}
   local ts = fetchTracks()
   if not ts then return false end
+  local home = homeTrack(ts)
+  local blips = Config.Practice.trackBlips or {}
   for _, t in ipairs(ts) do
+    if blips.enabled ~= false and t ~= home then
+      local b = AddBlipForCoord(t.centre.x, t.centre.y, t.centre.z)
+      SetBlipSprite(b, 315); SetBlipDisplay(b, 4); SetBlipScale(b, 0.8); SetBlipAsShortRange(b, false)
+      BeginTextCommandSetBlipName('STRING'); AddTextComponentString(trackLabel(t.id)); EndTextCommandSetBlipName(b)
+      trackBlips[#trackBlips + 1] = b
+    end
     trackPoints[#trackPoints + 1] = lib.points.new({
       coords = vector3(t.centre.x, t.centre.y, t.centre.z),
       distance = t.radius + (cfg.spawnDistance or 300.0),
@@ -556,5 +581,7 @@ RegisterCommand('practicestatus', function()
 end, false)
 
 AddEventHandler('onResourceStop', function(res)
-  if res == GetCurrentResourceName() then despawn() end
+  if res ~= GetCurrentResourceName() then return end
+  despawn()
+  for _, b in ipairs(trackBlips) do if DoesBlipExist(b) then RemoveBlip(b) end end
 end)

@@ -18,6 +18,13 @@ Config.Practice = {
 -- within this many metres of the track's centre. Each track gets its own zone, host, grid,
 -- start line and lap clock, so a second circuit only needs its own /recordline.
 Config.Practice.trackJoinRadius = 1500.0
+-- Map blip per track (sprite 315), placed at the track centre. The raceway nearest the LED
+-- sign keeps its paddock blip from the lobby NPC instead. Names by track id (the base name
+-- of the track's first recorded line); an id without an entry shows as "<Id> Raceway".
+Config.Practice.trackBlips = {
+    enabled = true,
+    names   = { grandsenora = 'Grand Senora Raceway' },
+}
 
 --- AI PRACTICE CARS
 -- When no race is live and a player is near the track, a few cars lap the recorded line.
