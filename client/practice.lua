@@ -91,6 +91,17 @@ local function pickSet()
   return gridSet
 end
 
+-- A set may scale the line's target speeds: straightScale on the fast parts, cornerScale on
+-- the slow parts (blended by how close the point's speed is to the track's top speed), so a
+-- bike set runs its own pace and takes the corners slower than the cars on the same line.
+local function setSpeed(v, top)
+  local s = gridSet
+  if not s or (not s.straightScale and not s.cornerScale) then return v end
+  local t = (top and top > 0) and math.min(1.0, v / top) or 1.0
+  local straight, corner = s.straightScale or 1.0, s.cornerScale or (s.straightScale or 1.0)
+  return v * (corner + (straight - corner) * t)
+end
+
 local function pickModels(n)
   local pool = (gridSet and gridSet.models) or cfg.models
   if not pool or #pool == 0 then
@@ -165,6 +176,7 @@ local function spawn()
   for i = 1, count do
     if not running then break end
     local L = all[math.random(#all)]
+    if not L.vmax then L.vmax = 0.0; for _, q in ipairs(L.pts) do if (q.v or 0) > L.vmax then L.vmax = q.v end end end
     local pts, n = L.pts, #L.pts
     local idx = Practice.PrevIndex(Practice.NearestIndex(pts, me), n, cfg.releaseBehind or 12)
     local pt = pts[idx]
@@ -288,7 +300,8 @@ local function spawn()
         bias = -j + 2 * j * math.random(),
         pace = 1 - v + 2 * v * math.random(),
       }
-      c.cruise = (pts[idx].v or cfg.cruiseSpeed or 30.0) * c.pace
+      c.vmax = L.vmax
+      c.cruise = setSpeed(pts[idx].v or cfg.cruiseSpeed or 30.0, L.vmax) * c.pace
       c.speed = c.cruise
       c.prog = idx
       c.lastProg = GetGameTimer()
@@ -375,7 +388,7 @@ startSteering = function()
             c.prog = bestI; c.lastProg = now
           end
           -- pace for this stretch of line: its speed profile x this car's pace factor x grid pace
-          c.cruise = (c.pts[c.prog].v or cfg.cruiseSpeed or 30.0) * c.pace * paceMult
+          c.cruise = setSpeed(c.pts[c.prog].v or cfg.cruiseSpeed or 30.0, c.vmax) * c.pace * paceMult
           raceLogic(c, others)
           -- Aim point scales with speed so the car never overshoots its own target.
           local aim = Practice.AimPoints(GetEntitySpeed(c.veh), cfg.aimSeconds or 2.0, Config.Practice.recordSpacing or 12.0,
