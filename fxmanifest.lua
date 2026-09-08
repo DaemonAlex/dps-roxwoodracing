@@ -32,6 +32,7 @@ client_scripts {
   'client/recorder.lua',
   'client/practice.lua',
   'client/pitcars.lua',
+  'client/signs.lua',
 }
 
 server_scripts {
@@ -49,6 +50,7 @@ server_scripts {
   'server/lines.lua',
   'server/pitcars.lua',
   'server/practice.lua',
+  'server/signs.lua',
 }
 
 ui_page 'html/index.html'

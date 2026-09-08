@@ -109,20 +109,28 @@ RegisterNetEvent('dps-roxwoodracing:practice:lap', function(ms)
 end)
 
 -- Running order from the raceway's host, onto everyone's sign (only while no race is live)
+local lastBoardBy = {}   -- track id -> last accepted board time
 RegisterNetEvent('dps-roxwoodracing:practice:board', function(title, names)
   local src = source
-  local home = homeTrack()
-  if not home or src ~= host[home.id] or GlobalState.rwPracticeAllowed == false then return end
+  local p = present[src]
+  if not p or src ~= host[p.track] or GlobalState.rwPracticeAllowed == false then return end
   local now = GetGameTimer()
-  if now - lastBoard < 900 then return end
+  if now - (lastBoardBy[p.track] or 0) < 900 then return end
   if type(names) ~= 'table' or #names > 9 or type(title) ~= 'string' or #title > 6 then return end
   local clean = {}
   for i, n in ipairs(names) do
     if type(n) ~= 'string' or #n > 8 then return end
     clean[i] = n
   end
-  lastBoard = now
-  TriggerEvent('amir-leaderboard:setPlayerNames', title, clean)
+  lastBoardBy[p.track] = now
+  local home = homeTrack()
+  if home and p.track == home.id then
+    TriggerEvent('amir-leaderboard:setPlayerNames', title, clean)      -- raceway: everyone, as before
+  else
+    for s, q in pairs(present) do                                       -- other tracks: the players there
+      if q.track == p.track then TriggerClientEvent('dps-roxwoodracing:setPlayerNames', s, title, clean) end
+    end
+  end
 end)
 
 --- A lobby was created: warn everyone practising at the raceway.

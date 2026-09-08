@@ -100,6 +100,9 @@ CreateThread(function()
     -- Re-apply when a player gets near the sign. If the dictionary was not resident at
     -- startup (Roxwood is far from most spawns) the first registration can miss; this one
     -- runs with the sign streamed in. One-shot per approach, no polling of our own.
+    AddEventHandler('dps-roxwoodracing:sign:nearby', function()
+        CreateThread(function() ApplyReplacement("placed sign") end)
+    end)
     if Config.Leaderboard.signCoords then
         lib.points.new({
             coords = Config.Leaderboard.signCoords,

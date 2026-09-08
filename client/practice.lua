@@ -40,6 +40,8 @@ local palette = {
   { 145, 0 },   -- purple / black
 }
 
+function PracticeCurrentTrack() return curTrack and curTrack.id or nil end
+
 local paused = false   -- a line is being recorded on this client
 local function allowed()
   local g = GlobalState.rwPracticeAllowed
