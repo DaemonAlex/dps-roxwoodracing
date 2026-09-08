@@ -49,8 +49,8 @@ Config.Practice.ai = {
             -- Stock cars on a short oval: lower cornering and braking limits than the
             -- open-wheelers, gentler aim, a slower fallback cruise.
             physics      = { vmax = 85.0, vmin = 28.0, aLat = 15.0, aBrake = 20.0, aAccel = 12.0 },
-            -- Three lines spread up to 2 m across the straights, pinched to 15% of that in the bends.
-            variants     = 3,
+            -- Six lines spread up to 2 m across the straights, pinched to 15% of that in the bends.
+            variants     = 6,
             varyAmplitude = 2.0,
             varyCornerScale = 0.15,
             cruiseSpeed  = 60.0,
