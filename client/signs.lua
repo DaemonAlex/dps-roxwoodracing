@@ -18,10 +18,15 @@ local function place(row)
   local deadline = GetGameTimer() + 5000
   while not HasModelLoaded(hash) and GetGameTimer() < deadline do Wait(50) end
   if not HasModelLoaded(hash) then log('model did not load in 5 s') return end
-  local obj = CreateObjectNoOffset(hash, row.x, row.y, row.z, false, false, false)
+  -- The stored point is where the director stood (ground level). The model's origin is not
+  -- at its base, so lift it by the model's lower extent and drop it on the ground from there.
+  local mn, mx = GetModelDimensions(hash)
+  local z = row.z - mn.z
+  local obj = CreateObjectNoOffset(hash, row.x, row.y, z, false, false, false)
   if obj == 0 then log('object create refused') return end
-  log(('sign for %s created at %.1f %.1f %.1f'):format(row.track, row.x, row.y, row.z))
+  log(('sign for %s created at %.1f %.1f %.1f (model z extent %.2f..%.2f)'):format(row.track, row.x, row.y, z, mn.z, mx.z))
   SetEntityHeading(obj, row.h)
+  PlaceObjectOnGroundProperly(obj)
   FreezeEntityPosition(obj, true)
   SetEntityLodDist(obj, (Config.Leaderboard and Config.Leaderboard.signLodDistance) or 3000)
   SetModelAsNoLongerNeeded(hash)
