@@ -5,20 +5,12 @@
 -- steering thread exists only while cars are up.
 local cfg = Config.Practice and Config.Practice.ai
 if not cfg or not cfg.enabled then return end
-local baseCfg = cfg
--- While near a track, `cfg` is that track's view: its perTrack entry with the defaults behind it.
-local function useTrackCfg(t)
-  local per = t and baseCfg.perTrack and baseCfg.perTrack[t.id]
-  cfg = per and setmetatable(per, { __index = baseCfg }) or baseCfg
-end
 local mode = Config.Practice.mode or {}
 
 local cars = {}
 local running, nearTrack, isHost = false, false, false
 local lines = nil           -- { { name, pts, closed }, ... }
-local tracks = nil          -- Practice.Cluster over lines: { { id, centre, radius, lines }, ... }
-local curTrack = nil        -- the track this client is near (nil = none)
-local trackPoints, startZones, trackBlips = {}, {}, {}
+local trackPoint, startZone
 local startSteering
 local targetLap = nil                         -- best rolling average on the track (ms), from the server
 local paceMult = mode.defaultPace or 0.85     -- grid pace multiplier
@@ -40,14 +32,10 @@ local palette = {
   { 145, 0 },   -- purple / black
 }
 
-function PracticeCurrentTrack() return curTrack and curTrack.id or nil end
-
-local paused = false   -- a line is being recorded on this client
 local function allowed()
   local g = GlobalState.rwPracticeAllowed
-  return (g == nil or g == true) and not IsRaceActive() and not paused
+  return (g == nil or g == true) and not IsRaceActive()
 end
-
 
 local function loadModel(hash, ms)
   if not IsModelValid(hash) then return nil end
@@ -64,14 +52,6 @@ local function fetchLines()
   return lines
 end
 
-local function fetchTracks()
-  if tracks then return tracks end
-  local all = fetchLines()
-  if not all then return nil end
-  tracks = Practice.Cluster(all, Config.Practice.trackJoinRadius)
-  return tracks
-end
-
 local function despawn()
   running = false
   for _, c in ipairs(cars) do
@@ -81,42 +61,14 @@ local function despawn()
   cars = {}
 end
 
-
--- A track may list several car sets ({ label, models, engineSounds }); one is drawn each
--- time the grid forms, so the field changes from one visit to the next.
-local gridSet = nil
-local function pickSet()
-  local sets = cfg.sets
-  if type(sets) == 'table' and #sets > 0 then gridSet = sets[math.random(#sets)] else gridSet = nil end
-  return gridSet
-end
-
--- A set may scale the line's target speeds: straightScale on the fast parts, cornerScale on
--- the slow parts (blended by how close the point's speed is to the track's top speed), so a
--- bike set runs its own pace and takes the corners slower than the cars on the same line.
-local function setSpeed(v, top)
-  local s = gridSet
-  if not s or (not s.straightScale and not s.cornerScale) then return v end
-  local t = (top and top > 0) and math.min(1.0, v / top) or 1.0
-  local straight, corner = s.straightScale or 1.0, s.cornerScale or (s.straightScale or 1.0)
-  return v * (corner + (straight - corner) * t)
-end
-
 local function pickModels(n)
-  local pool = (gridSet and gridSet.models) or cfg.models
+  local pool = cfg.models
   if not pool or #pool == 0 then
     pool = {}
     for _, v in ipairs(Config.SpecFallbackVehicles or {}) do pool[#pool + 1] = v.model end
   end
-  -- Deal the pool like a deck: no model repeats until every model has been used once.
-  local out, deck = {}, {}
-  for i = 1, n do
-    if #deck == 0 then
-      for _, m in ipairs(pool) do deck[#deck + 1] = m end
-      for k = #deck, 2, -1 do local j = math.random(k); deck[k], deck[j] = deck[j], deck[k] end
-    end
-    out[i] = table.remove(deck)
-  end
+  local out = {}
+  for i = 1, n do out[i] = pool[math.random(#pool)] end
   return out
 end
 
@@ -159,12 +111,10 @@ end
 
 local function spawn()
   if running or not allowed() or not isHost then return end
-  local all = curTrack and curTrack.lines
-  if not all then log('no track here, nothing to run') return end
+  local all = fetchLines()
+  if not all then log('no line stored, nothing to run') return end
   running = true
   local count = cfg.cars or 4
-  local set = pickSet()
-  if set then log(('grid set: %s'):format(set.label or '?')) end
   local models = pickModels(count)
   local driverHash = loadModel(joaat(cfg.driverModel or 'a_m_y_motox_01'), 5000)
   if not driverHash then log('driver model failed to load') running = false return end
@@ -176,7 +126,6 @@ local function spawn()
   for i = 1, count do
     if not running then break end
     local L = all[math.random(#all)]
-    if not L.vmax then L.vmax = 0.0; for _, q in ipairs(L.pts) do if (q.v or 0) > L.vmax then L.vmax = q.v end end end
     local pts, n = L.pts, #L.pts
     local idx = Practice.PrevIndex(Practice.NearestIndex(pts, me), n, cfg.releaseBehind or 12)
     local pt = pts[idx]
@@ -211,9 +160,7 @@ local function spawn()
       local vc = GetEntityCoords(veh)
       log(('car %d: vehicle at %.1f %.1f %.1f (asked %.1f %.1f %.1f), collision %s, %.0f m from player'):format(
         i, vc.x, vc.y, vc.z, pt.x, pt.y, pt.z, tostring(HasCollisionLoadedAroundEntity(veh)), #(vc - GetEntityCoords(PlayerPedId()))))
-      -- Driver first, before any mods or tuning touch the vehicle. The model was loaded at the
-      -- start of the grid, but cars come 35 s apart and the game can drop it in between.
-      if not HasModelLoaded(driverHash) then loadModel(driverHash, 5000) end
+      -- Driver first, before any mods or tuning touch the vehicle.
       local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, net, false)
       if ped == 0 then
         log(('car %d: in-vehicle driver create refused (model loaded=%s), creating beside and seating'):format(i, tostring(HasModelLoaded(driverHash))))
@@ -267,10 +214,8 @@ local function spawn()
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
       if cfg.tunePreset and Customs and Customs.ApplyTune then Customs.ApplyTune(veh, cfg.tunePreset) end
       if (cfg.topSpeedBoost or 0) > 0 then ModifyVehicleTopSpeed(veh, cfg.topSpeedBoost) end
-      local banks = cfg.engineSounds
-      if gridSet and gridSet.engineSounds ~= nil then banks = gridSet.engineSounds end
-      if banks and #banks > 0 then
-        ForceVehicleEngineAudio(veh, banks[math.random(#banks)])
+      if cfg.engineSounds and #cfg.engineSounds > 0 then
+        ForceVehicleEngineAudio(veh, cfg.engineSounds[math.random(#cfg.engineSounds)])
       end
       SetAudioVehiclePriority(veh, cfg.audioPriority or 3)
       SetVehicleEngineOn(veh, true, true, true)
@@ -300,8 +245,7 @@ local function spawn()
         bias = -j + 2 * j * math.random(),
         pace = 1 - v + 2 * v * math.random(),
       }
-      c.vmax = L.vmax
-      c.cruise = setSpeed(pts[idx].v or cfg.cruiseSpeed or 30.0, L.vmax) * c.pace
+      c.cruise = (pts[idx].v or cfg.cruiseSpeed or 30.0) * c.pace
       c.speed = c.cruise
       c.prog = idx
       c.lastProg = GetGameTimer()
@@ -388,7 +332,7 @@ startSteering = function()
             c.prog = bestI; c.lastProg = now
           end
           -- pace for this stretch of line: its speed profile x this car's pace factor x grid pace
-          c.cruise = setSpeed(c.pts[c.prog].v or cfg.cruiseSpeed or 30.0, c.vmax) * c.pace * paceMult
+          c.cruise = (c.pts[c.prog].v or cfg.cruiseSpeed or 30.0) * c.pace * paceMult
           raceLogic(c, others)
           -- Aim point scales with speed so the car never overshoots its own target.
           local aim = Practice.AimPoints(GetEntitySpeed(c.veh), cfg.aimSeconds or 2.0, Config.Practice.recordSpacing or 12.0,
@@ -439,7 +383,7 @@ startSteering = function()
         end
       end
       -- Players on the track: progress on the main line and laps at the seam (host only)
-      local main = curTrack and curTrack.lines[1]
+      local main = lines and lines[1]
       if main then
         local n = #main.pts
         local seen = {}
@@ -480,95 +424,59 @@ startSteering = function()
   end)
 end
 
--- A line is being recorded on this client: grid down until it is saved or abandoned.
-RegisterNetEvent('dps-roxwoodracing:practice:pause', function(on)
-  paused = on == true
-  if paused then despawn() elseif nearTrack then CreateThread(spawn) end
-end)
-
--- One point per track; enter = that track's cars up, leave = cars gone. Each track also
--- gets a start line at the first point of its main line: crossing it starts the lap
--- clock, the next crossing completes the lap.
-local function homeTrack(ts)
-  local sign = Config.Leaderboard and Config.Leaderboard.signCoords
-  if not sign then return ts[1] end
-  local best, bestD
-  for _, t in ipairs(ts) do
-    local d = Practice.Dist2D(t.centre, sign)
-    if not bestD or d < bestD then best, bestD = t, d end
-  end
-  return best
-end
-
-local function trackLabel(id)
-  local names = (Config.Practice.trackBlips or {}).names or {}
-  return names[id] or (id:sub(1, 1):upper() .. id:sub(2) .. ' Raceway')
-end
-
-local function armTracks()
-  for _, p in ipairs(trackPoints) do p:remove() end
-  for _, z in ipairs(startZones) do z:remove() end
-  for _, b in ipairs(trackBlips) do if DoesBlipExist(b) then RemoveBlip(b) end end
-  trackPoints, startZones, trackBlips = {}, {}, {}
-  local ts = fetchTracks()
-  if not ts then return false end
-  local home = homeTrack(ts)
-  local blips = Config.Practice.trackBlips or {}
-  for _, t in ipairs(ts) do
-    if blips.enabled ~= false and t ~= home then
-      local b = AddBlipForCoord(t.centre.x, t.centre.y, t.centre.z)
-      SetBlipSprite(b, 315); SetBlipDisplay(b, 4); SetBlipScale(b, 0.8); SetBlipAsShortRange(b, false)
-      BeginTextCommandSetBlipName('STRING'); AddTextComponentString(trackLabel(t.id)); EndTextCommandSetBlipName(b)
-      trackBlips[#trackBlips + 1] = b
-    end
-    trackPoints[#trackPoints + 1] = lib.points.new({
-      coords = vector3(t.centre.x, t.centre.y, t.centre.z),
-      distance = t.radius + (cfg.spawnDistance or 300.0),
-      onEnter = function()
-        if curTrack and curTrack ~= t then despawn() end
-        curTrack, nearTrack = t, true
-        useTrackCfg(t)
-        TriggerServerEvent('dps-roxwoodracing:practice:enter', t.id)
-        CreateThread(spawn)
-      end,
-      onExit = function()
-        if curTrack ~= t then return end
-        curTrack, nearTrack = nil, false
-        useTrackCfg(nil)
-        clockStart = nil
-        TriggerServerEvent('dps-roxwoodracing:practice:leave')
-        despawn()
-      end,
-    })
-    local s0 = t.lines[1].pts[1]
-    startZones[#startZones + 1] = lib.zones.sphere({
-      coords = vector3(s0.x, s0.y, s0.z),
-      radius = mode.startRadius or 15.0,
-      onEnter = function()
-        if curTrack ~= t or IsRaceActive() or not allowed() then return end
-        if GetVehiclePedIsIn(PlayerPedId(), false) == 0 then return end
-        local now = GetGameTimer()
-        if now - lastClockAt < 10000 then return end
-        lastClockAt = now
-        if clockStart then
-          local ms = now - clockStart
-          clockStart = now
-          TriggerServerEvent('dps-roxwoodracing:practice:lap', ms)
-        else
-          clockStart = now
-          Notify(Config.Job.label, Locale('practice_clock_started'), 'inform', 5000)
-        end
-      end,
-    })
-  end
-  log(('%d track(s) armed: %s'):format(#ts, table.concat((function() local n = {} for _, t in ipairs(ts) do n[#n + 1] = ('%s (%d lines, r %.0f m)'):format(t.id, #t.lines, t.radius) end return n end)(), ', ')))
+-- One point around all the lines; enter = cars up, leave = cars gone.
+local function armPoint()
+  if trackPoint then trackPoint:remove(); trackPoint = nil end
+  local all = fetchLines()
+  if not all then return false end
+  local merged = {}
+  for _, L in ipairs(all) do for _, p in ipairs(L.pts) do merged[#merged + 1] = p end end
+  local centre, radius = Practice.Extent(merged)
+  trackPoint = lib.points.new({
+    coords = vector3(centre.x, centre.y, centre.z),
+    distance = radius + (cfg.spawnDistance or 300.0),
+    onEnter = function()
+      nearTrack = true
+      TriggerServerEvent('dps-roxwoodracing:practice:enter')
+      CreateThread(spawn)
+    end,
+    onExit = function()
+      nearTrack = false
+      clockStart = nil
+      TriggerServerEvent('dps-roxwoodracing:practice:leave')
+      despawn()
+    end,
+  })
+  -- Start line: the first point of the main line. Crossing it starts the lap clock;
+  -- the next crossing completes the lap.
+  if startZone then startZone:remove(); startZone = nil end
+  local s0 = all[1].pts[1]
+  startZone = lib.zones.sphere({
+    coords = vector3(s0.x, s0.y, s0.z),
+    radius = mode.startRadius or 15.0,
+    onEnter = function()
+      if IsRaceActive() or not allowed() then return end
+      if GetVehiclePedIsIn(PlayerPedId(), false) == 0 then return end
+      local now = GetGameTimer()
+      if now - lastClockAt < 10000 then return end
+      lastClockAt = now
+      if clockStart then
+        local ms = now - clockStart
+        clockStart = now
+        TriggerServerEvent('dps-roxwoodracing:practice:lap', ms)
+      else
+        clockStart = now
+        Notify(Config.Job.label, Locale('practice_clock_started'), 'inform', 5000)
+      end
+    end,
+  })
   return true
 end
 
 CreateThread(function()
   while not NetworkIsSessionStarted() do Wait(500) end
   Wait(2000)
-  if not armTracks() then log('no line stored; record one with /recordline') end
+  if not armPoint() then log('no line stored; record one with /recordline') end
 end)
 
 AddStateBagChangeHandler('rwPracticeAllowed', 'global', function(_, _, value)
@@ -577,9 +485,9 @@ AddStateBagChangeHandler('rwPracticeAllowed', 'global', function(_, _, value)
 end)
 
 -- Server-elected host: only the host spawns and drives the grid
-RegisterNetEvent('dps-roxwoodracing:practice:host', function(on, track)
-  isHost = on == true and (track == nil or (curTrack ~= nil and curTrack.id == track))
-  log(('host=%s track=%s'):format(tostring(isHost), tostring(track)))
+RegisterNetEvent('dps-roxwoodracing:practice:host', function(on)
+  isHost = on == true
+  log(('host=%s'):format(tostring(isHost)))
   if isHost then
     if nearTrack then CreateThread(spawn) end
   else
@@ -610,14 +518,14 @@ end)
 RegisterNetEvent('dps-roxwoodracing:line:saved', function(ok)
   if not ok then return end
   despawn()
-  lines, tracks = nil, nil
-  if armTracks() and nearTrack then CreateThread(spawn) end
+  lines = nil
+  if armPoint() and nearTrack then CreateThread(spawn) end
 end)
 
 -- /practicestatus: one F8 line per car (where it is, how fast, laps, stuck resets)
 RegisterCommand('practicestatus', function()
-  log(('running=%s nearTrack=%s track=%s host=%s cars=%d allowed=%s pace=%.2f target=%s clock=%s'):format(
-    tostring(running), tostring(nearTrack), curTrack and curTrack.id or 'none', tostring(isHost), #cars, tostring(allowed()), paceMult,
+  log(('running=%s nearTrack=%s host=%s cars=%d allowed=%s pace=%.2f target=%s clock=%s'):format(
+    tostring(running), tostring(nearTrack), tostring(isHost), #cars, tostring(allowed()), paceMult,
     targetLap and Practice.FormatMs(targetLap) or 'none', clockStart and Practice.FormatMs(GetGameTimer() - clockStart) or 'off'))
   for pid, rec in pairs(players) do log(('player %s: lap %d, point %d'):format(rec.name or pid, rec.laps or 0, rec.prog or 0)) end
   local me = GetEntityCoords(PlayerPedId())
@@ -635,7 +543,5 @@ RegisterCommand('practicestatus', function()
 end, false)
 
 AddEventHandler('onResourceStop', function(res)
-  if res ~= GetCurrentResourceName() then return end
-  despawn()
-  for _, b in ipairs(trackBlips) do if DoesBlipExist(b) then RemoveBlip(b) end end
+  if res == GetCurrentResourceName() then despawn() end
 end)

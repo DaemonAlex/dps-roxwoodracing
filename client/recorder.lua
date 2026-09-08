@@ -4,6 +4,7 @@ local recording, points, lineName = false, {}, nil
 
 local function stopRecording()
   recording = false
+  TriggerEvent('dps-roxwoodracing:practice:pause', false)
   local n = #points
   if n < (Config.Practice.minPoints or 10) then
     Notify(Config.Job.label, Locale('line_too_short', n), 'error')
@@ -31,6 +32,7 @@ RegisterCommand('recordline', function(_, args)
     return
   end
   lineName, points, recording = name, {}, true
+  TriggerEvent('dps-roxwoodracing:practice:pause', true)   -- the grid stands down while a line is recorded
   Notify(Config.Job.label, Locale('line_recording', name), 'inform', 9000)
 
   -- Bounded sampler: only runs while a recording is in progress.
@@ -49,7 +51,13 @@ RegisterCommand('recordline', function(_, args)
           points[#points + 1] = { x = c.x, y = c.y, z = c.z, h = GetEntityHeading(ent) }
           last = c
           if #points % 50 == 0 then Notify(Config.Job.label, Locale('line_progress', #points), 'inform', 2000) end
-          if #points >= maxPoints then stopRecording() end
+          -- One lap is the line: back within closeRadius of the first point after enough
+          -- distance = the loop is closed, stop and save (a second lap would stack on the first).
+          local minPts, closeR = Config.Practice.minPoints or 10, Config.Practice.closeRadius or 15.0
+          if #points > math.max(minPts, 20) and #(c - vector3(points[1].x, points[1].y, points[1].z)) <= closeR then
+            Notify(Config.Job.label, Locale('line_closed_auto'), 'inform', 6000)
+            stopRecording()
+          elseif #points >= maxPoints then stopRecording() end
         end
       end
       Wait(100)

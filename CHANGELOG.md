@@ -1,3 +1,16 @@
+# 3.1.0 (2026-09-07)
+
+Practice grid and practice mode.
+
+- Practice lines: `/recordline <name>` (drive or walk), stored raw, served smoothed with the closure trimmed and four generated variants; per-point speed profile from route geometry.
+- AI grid: six open-wheel cars, released one every 35 s with a rolling start, distinct colours and liveries, helmets, F1/V10 engine audio, Race tune and top-speed lift; speed-scaled aim capped by curvature and a chord test; racecraft (inside line, slipstream, late braking, close-gap lift, defending on straights); stuck recovery; OneSync culling radius raised per car.
+- One shared grid: server-elected host spawns and drives; the AI reacts to every player's car; running order relayed to everyone's sign.
+- Practice mode: lap clock at the start line, personal best and rolling average in the stats table, AI pace fitted to the best average on the track; race-forming notice and paddock clear at GO.
+- Static pit cars (`/pitcar`), `/practicestatus`.
+- Pit crew: pool of ten models with random outfits, collision-aware ground placement.
+- LED sign: Barlow Condensed Bold, DPS sponsor slides, texture replacement re-applied near the sign; bounded waits with logging.
+- Driving-style flag corrected (`ForceStraightLine` = 16777216); closed-loop flag accepted as boolean from the database.
+
 # Changelog
 
 ## v3.0.0 — 2026-09-05 — dps-roxwoodracing
