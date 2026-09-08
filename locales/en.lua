@@ -14,6 +14,7 @@ Config.LocaleTable = {
   line_need_vehicle = 'Sit in the car you will drive the line with first.',
   line_recording = 'Recording line "{1}". Drive or walk one clean lap down the centre, then /recordline again to save.',
   line_progress = '{1} points recorded.',
+  line_closed_auto = 'Back at the start: lap closed, saving the line.',
   line_too_short = 'Only {1} points, not saved. Drive further before stopping.',
   line_saved_closed = 'Line "{1}" saved: {2} points, closed loop.',
   line_saved_open = 'Line "{1}" saved: {2} points. It does not end near its start, so it will run as an open line.',
