@@ -51,6 +51,8 @@ Config.Practice.ai = {
                 { label = 'GT3',        models = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' }, engineSounds = false },
                 { label = 'NASCAR',     models = { 'nextgen', 'camrynascar', 'fusionnas', 'hotring' }, engineSounds = { 'lg44nascarv8' } },
                 { label = 'Superbike',  models = { 'bati', 'bati2', 'hakuchou2', 'akuma', 'carbonrs', 'double', 'vortex', 'defiler', 'hakuchou', 'shinobi', 'reever' } },
+                { label = 'Classics', models = { 'stinger', 'ztype', 'torero', 'cheetah2', 'infernus2', 'turismo2', 'jb700', 'mamba', 'coquette2', 'rapidgt3', 'retinue', 'gt500', 'viseris', 'savestra', 'michelli', 'swinger', 'nebula', 'zion3', 'dynasty', 'peyote3', 'coquette3', 'monroe', 'casco', 'feltzer3', 'btype', 'cheburek', 'fagaloa' } },
+                { label = 'Retro Racing', models = { 'torero', 'cheetah2', 'retinue', 'gt500', 'rapidgt3', 'cheburek', 'tampa2', 'jester3', 'sultan2', 'hotring', 'ellie', 'dominator3', 'gauntlet3', 'stingergt', 'coquette3', 'infernus2', 'turismo2', 'viseris' } },
             },
         },
         -- Los Santos Circuit (Vinewood track): GT3 grid, each car on its own engine bank
@@ -62,8 +64,11 @@ Config.Practice.ai = {
                 { label = 'GT3',       models = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' }, engineSounds = false },
                 { label = 'Hypercar',  models = { 'alplmu2025', 'amrlmh', 'bmwlmu2025', 'fer49p2025', 'peulmu2025', 'toyotaGR2025' }, engineSounds = false },
                 { label = 'Touring',   models = { '2017M4DTM', 'castrolsupra', 'Mirage', 'fmjb' }, engineSounds = false },
+                { label = 'Trucks', models = { 'trophytruck', 'trophytruck2', 'sandking', 'sandking2', 'rebel2', 'kamacho', 'riata', 'everon', 'caracara2', 'hellion', 'freecrawler', 'dune', 'bifta', 'brawler', 'vagrant', 'outlaw', 'yosemite2', 'yosemite3', 'mesa3', 'bodhi2', 'ratel', 'boor' } },
                 { label = 'Open Wheel', models = { 'openwheel1', 'openwheel2', 'formula', 'formula2' } },
                 { label = 'Superbike',  models = { 'bati', 'bati2', 'hakuchou2', 'akuma', 'carbonrs', 'double', 'vortex', 'defiler', 'hakuchou', 'shinobi', 'reever' } },
+                { label = 'Classics', models = { 'stinger', 'ztype', 'torero', 'cheetah2', 'infernus2', 'turismo2', 'jb700', 'mamba', 'coquette2', 'rapidgt3', 'retinue', 'gt500', 'viseris', 'savestra', 'michelli', 'swinger', 'nebula', 'zion3', 'dynasty', 'peyote3', 'coquette3', 'monroe', 'casco', 'feltzer3', 'btype', 'cheburek', 'fagaloa' } },
+                { label = 'Retro Racing', models = { 'torero', 'cheetah2', 'retinue', 'gt500', 'rapidgt3', 'cheburek', 'tampa2', 'jester3', 'sultan2', 'hotring', 'ellie', 'dominator3', 'gauntlet3', 'stingergt', 'coquette3', 'infernus2', 'turismo2', 'viseris' } },
             },
             models       = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' },
             engineSounds = false,
@@ -95,6 +100,7 @@ Config.Practice.ai = {
             sets = {
                 { label = 'NASCAR',    models = { 'nextgen', 'camrynascar', 'fusionnas' }, engineSounds = { 'lg44nascarv8' } },
                 { label = 'Stock Car', models = { 'nextgen', 'camrynascar', 'fusionnas', 'hotring' }, engineSounds = { 'lg44nascarv8' } },
+                { label = 'Trucks', models = { 'trophytruck', 'trophytruck2', 'sandking', 'sandking2', 'rebel2', 'kamacho', 'riata', 'everon', 'caracara2', 'hellion', 'freecrawler', 'dune', 'bifta', 'brawler', 'vagrant', 'outlaw', 'yosemite2', 'yosemite3', 'mesa3', 'bodhi2', 'ratel', 'boor' } },
                 { label = 'Hypercar',  models = { 'alplmu2025', 'amrlmh', 'bmwlmu2025', 'fer49p2025', 'peulmu2025', 'toyotaGR2025' }, engineSounds = false },
                 { label = 'GT3',       models = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' }, engineSounds = false },
             },
