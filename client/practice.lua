@@ -179,7 +179,9 @@ local function spawn()
       local vc = GetEntityCoords(veh)
       log(('car %d: vehicle at %.1f %.1f %.1f (asked %.1f %.1f %.1f), collision %s, %.0f m from player'):format(
         i, vc.x, vc.y, vc.z, pt.x, pt.y, pt.z, tostring(HasCollisionLoadedAroundEntity(veh)), #(vc - GetEntityCoords(PlayerPedId()))))
-      -- Driver first, before any mods or tuning touch the vehicle.
+      -- Driver first, before any mods or tuning touch the vehicle. The model was loaded at the
+      -- start of the grid, but cars come 35 s apart and the game can drop it in between.
+      if not HasModelLoaded(driverHash) then loadModel(driverHash, 5000) end
       local ped = CreatePedInsideVehicle(veh, 4, driverHash, -1, net, false)
       if ped == 0 then
         log(('car %d: in-vehicle driver create refused (model loaded=%s), creating beside and seating'):format(i, tostring(HasModelLoaded(driverHash))))
