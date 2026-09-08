@@ -4,6 +4,7 @@ local recording, points, lineName = false, {}, nil
 
 local function stopRecording()
   recording = false
+  TriggerEvent('dps-roxwoodracing:practice:pause', false)
   local n = #points
   if n < (Config.Practice.minPoints or 10) then
     Notify(Config.Job.label, Locale('line_too_short', n), 'error')
@@ -31,6 +32,7 @@ RegisterCommand('recordline', function(_, args)
     return
   end
   lineName, points, recording = name, {}, true
+  TriggerEvent('dps-roxwoodracing:practice:pause', true)   -- the grid stands down while a line is recorded
   Notify(Config.Job.label, Locale('line_recording', name), 'inform', 9000)
 
   -- Bounded sampler: only runs while a recording is in progress.

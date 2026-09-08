@@ -40,10 +40,12 @@ local palette = {
   { 145, 0 },   -- purple / black
 }
 
+local paused = false   -- a line is being recorded on this client
 local function allowed()
   local g = GlobalState.rwPracticeAllowed
-  return (g == nil or g == true) and not IsRaceActive()
+  return (g == nil or g == true) and not IsRaceActive() and not paused
 end
+
 
 local function loadModel(hash, ms)
   if not IsModelValid(hash) then return nil end
@@ -441,6 +443,12 @@ startSteering = function()
     TriggerEvent('dps-roxwoodracing:practice:boardOff')
   end)
 end
+
+-- A line is being recorded on this client: grid down until it is saved or abandoned.
+RegisterNetEvent('dps-roxwoodracing:practice:pause', function(on)
+  paused = on == true
+  if paused then despawn() elseif nearTrack then CreateThread(spawn) end
+end)
 
 -- One point per track; enter = that track's cars up, leave = cars gone. Each track also
 -- gets a start line at the first point of its main line: crossing it starts the lap
