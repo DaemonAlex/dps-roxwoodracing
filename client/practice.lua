@@ -5,6 +5,13 @@
 -- steering thread exists only while cars are up.
 local cfg = Config.Practice and Config.Practice.ai
 if not cfg or not cfg.enabled then return end
+local baseCfg = cfg
+-- While near a track, `cfg` is that track's view: its perTrack entry with the defaults behind it.
+local function useTrackCfg(t)
+  local per = t and baseCfg.perTrack and baseCfg.perTrack[t.id]
+  cfg = per and setmetatable(setmetatable({}, { __index = per }), { __index = baseCfg }) or baseCfg
+  if per then cfg = setmetatable(per, { __index = baseCfg }) end
+end
 local mode = Config.Practice.mode or {}
 
 local cars = {}
@@ -71,14 +78,9 @@ local function despawn()
   cars = {}
 end
 
-local function trackCfg(key)
-  local per = cfg.perTrack and curTrack and cfg.perTrack[curTrack.id]
-  if per and per[key] ~= nil then return per[key] end
-  return cfg[key]
-end
 
 local function pickModels(n)
-  local pool = trackCfg('models')
+  local pool = cfg.models
   if not pool or #pool == 0 then
     pool = {}
     for _, v in ipairs(Config.SpecFallbackVehicles or {}) do pool[#pool + 1] = v.model end
@@ -230,7 +232,7 @@ local function spawn()
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
       if cfg.tunePreset and Customs and Customs.ApplyTune then Customs.ApplyTune(veh, cfg.tunePreset) end
       if (cfg.topSpeedBoost or 0) > 0 then ModifyVehicleTopSpeed(veh, cfg.topSpeedBoost) end
-      local banks = trackCfg('engineSounds')
+      local banks = cfg.engineSounds
       if banks and #banks > 0 then
         ForceVehicleEngineAudio(veh, banks[math.random(#banks)])
       end
@@ -482,12 +484,14 @@ local function armTracks()
       onEnter = function()
         if curTrack and curTrack ~= t then despawn() end
         curTrack, nearTrack = t, true
+        useTrackCfg(t)
         TriggerServerEvent('dps-roxwoodracing:practice:enter', t.id)
         CreateThread(spawn)
       end,
       onExit = function()
         if curTrack ~= t then return end
         curTrack, nearTrack = nil, false
+        useTrackCfg(nil)
         clockStart = nil
         TriggerServerEvent('dps-roxwoodracing:practice:leave')
         despawn()

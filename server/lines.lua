@@ -49,6 +49,7 @@ RegisterNetEvent('dps-roxwoodracing:line:save', function(name, points)
   end
   Lines.Save(name, points, info, Bridge.GetPlayerIdentifier(src))
   cache[name] = nil
+  trackOf = nil
   print(('[dps-roxwoodracing] practice line "%s" saved: %d points, %s'):format(name, info.count, info.closed and 'closed loop' or 'open'))
   TriggerClientEvent('dps-roxwoodracing:line:saved', src, true,
     Locale(info.closed and 'line_saved_closed' or 'line_saved_open', name, info.count), name)
@@ -56,6 +57,23 @@ end)
 
 -- The lines the AI practice cars run (all stored lines, or Config.Practice.ai.lineNames),
 -- smoothed and cached until a line is re-recorded.
+-- Track of each stored line (Practice.Cluster over the raw lines), for per-track physics.
+local trackOf = nil
+local function trackFor(name)
+  if not trackOf then
+    local raw = {}
+    for _, r in ipairs(Lines.List()) do
+      local pts = Lines.Get(r.name)
+      if pts and #pts > 0 then raw[#raw + 1] = { name = r.name, pts = pts } end
+    end
+    trackOf = {}
+    for _, t in ipairs(Practice.Cluster(raw, Config.Practice.trackJoinRadius)) do
+      for _, L in ipairs(t.lines) do trackOf[L.name] = t.id end
+    end
+  end
+  return trackOf[name]
+end
+
 lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
   local names = Config.Practice.ai and Config.Practice.ai.lineNames
   if not names then
@@ -77,9 +95,12 @@ lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
           set[#set + 1] = { name = ('%s#%d'):format(name, k), closed = closed,
             pts = Lines.Vary(pts, k * 7919 + #pts, ai.varyAmplitude or 2.5, closed) }
         end
+        local per = ai.perTrack and ai.perTrack[trackFor(name) or '']
+        local physics = (per and per.physics) or ai.physics or {}
         for _, L in ipairs(set) do
-          Lines.SpeedProfilePhysics(L.pts, closed, ai.physics or {})
+          Lines.SpeedProfilePhysics(L.pts, closed, physics)
         end
+        print(('[dps-roxwoodracing] practice line "%s": track %s, vmax %.0f aLat %.0f'):format(name, tostring(trackFor(name)), physics.vmax or 90.0, physics.aLat or 18.0))
         cache[name] = set
       end
     end
