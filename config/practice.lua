@@ -48,10 +48,11 @@ Config.Practice.ai = {
             engineSounds = { 'lg44nascarv8' },
             -- Stock cars on a short oval: lower cornering and braking limits than the
             -- open-wheelers, gentler aim, a slower fallback cruise.
-            physics      = { vmax = 75.0, vmin = 18.0, aLat = 11.0, aBrake = 12.0, aAccel = 6.0 },
-            cruiseSpeed  = 45.0,
+            physics      = { vmax = 72.0, vmin = 22.0, aLat = 14.0, aBrake = 14.0, aAccel = 8.0 },
+            cruiseSpeed  = 50.0,
             aimMaxTurnDeg = 15,
-            aimMaxCut    = 1.0,
+            aimMaxCut    = 0.8,
+            laneJitter   = 0.4,
         },
     },
     driverModel    = 'a_m_y_motox_01',

@@ -9,8 +9,7 @@ local baseCfg = cfg
 -- While near a track, `cfg` is that track's view: its perTrack entry with the defaults behind it.
 local function useTrackCfg(t)
   local per = t and baseCfg.perTrack and baseCfg.perTrack[t.id]
-  cfg = per and setmetatable(setmetatable({}, { __index = per }), { __index = baseCfg }) or baseCfg
-  if per then cfg = setmetatable(per, { __index = baseCfg }) end
+  cfg = per and setmetatable(per, { __index = baseCfg }) or baseCfg
 end
 local mode = Config.Practice.mode or {}
 
