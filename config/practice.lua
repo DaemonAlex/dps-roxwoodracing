@@ -23,7 +23,7 @@ Config.Practice.trackJoinRadius = 1500.0
 -- of the track's first recorded line); an id without an entry shows as "<Id> Raceway".
 Config.Practice.trackBlips = {
     enabled = true,
-    names   = { grandsenora = 'Grand Senora Raceway' },
+    names   = { grandsenora = 'Grand Senora Raceway', lossantos = 'Los Santos Circuit' },
 }
 
 --- AI PRACTICE CARS
@@ -43,6 +43,26 @@ Config.Practice.ai = {
     -- track without an entry runs `models` / `engineSounds`. Sounds are library bank names
     -- from dps-racesounds; a track listed here with no sounds keeps each car's own bank.
     perTrack = {
+        -- Los Santos Circuit (Vinewood track): GT3 grid, each car on its own engine bank
+        -- (engineSounds = false keeps the model's own sound), road-course limits.
+        lossantos = {
+            models       = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' },
+            engineSounds = false,
+            physics      = { vmax = 88.0, vmin = 16.0, aLat = 22.0, aBrake = 26.0, aAccel = 18.0 },
+            cruiseSpeed  = 45.0,
+            tunePreset   = 'Race',
+            topSpeedBoost = 0,
+            aimSeconds   = 1.6,
+            aimMinPts    = 3,
+            aimCornerPts = 2,
+            aimMaxTurnDeg = 22,
+            aimMaxCut    = 0.7,
+            laneJitter   = 0.3,
+            paceVariance = 0.10,
+            variants     = 6,
+            varyAmplitude = 1.8,
+            varyCornerScale = 0.2,
+        },
         grandsenora = {
             models       = { 'nextgen', 'camrynascar', 'fusionnas' },
             engineSounds = { 'lg44nascarv8' },
