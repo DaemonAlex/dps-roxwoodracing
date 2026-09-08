@@ -13,12 +13,6 @@ Config.Practice = {
     smoothPasses  = 1,      -- keep it light: wide windows pull corners toward the inside
 }
 
---- TRACKS
--- Stored lines cluster into tracks by location: a line joins a track when its centre lies
--- within this many metres of the track's centre. Each track gets its own zone, host, grid,
--- start line and lap clock, so a second circuit only needs its own /recordline.
-Config.Practice.trackJoinRadius = 1500.0
-
 --- AI PRACTICE CARS
 -- When no race is live and a player is near the track, a few cars lap the recorded line.
 -- Scenery: the cars are local to each client (not networked), so they cost the server

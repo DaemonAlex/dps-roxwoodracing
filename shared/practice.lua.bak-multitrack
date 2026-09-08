@@ -27,33 +27,6 @@ function Practice.Extent(pts)
   return c, r
 end
 
---- Group lines into tracks by location: a line joins the first track whose centre lies within
---- joinRadius of the line's own centre, else it starts a new track. Each track carries the
---- merged centre and reach of its lines, its lines sorted by name (a base line sorts before
---- its "#n" variants), and an id: the base name of its first line. Tracks come back sorted by id.
-function Practice.Cluster(lines, joinRadius)
-  joinRadius = joinRadius or 1500.0
-  local tracks = {}
-  for _, L in ipairs(lines) do
-    local c = Practice.Extent(L.pts)
-    local home
-    for _, t in ipairs(tracks) do
-      if Practice.Dist2D(c, t.centre) <= joinRadius then home = t break end
-    end
-    if not home then home = { centre = c, lines = {} }; tracks[#tracks + 1] = home end
-    home.lines[#home.lines + 1] = L
-  end
-  for _, t in ipairs(tracks) do
-    local merged = {}
-    for _, L in ipairs(t.lines) do for _, p in ipairs(L.pts) do merged[#merged + 1] = p end end
-    t.centre, t.radius = Practice.Extent(merged)
-    table.sort(t.lines, function(a, b) return a.name < b.name end)
-    t.id = (t.lines[1].name:gsub('#.*$', ''))
-  end
-  table.sort(tracks, function(a, b) return a.id < b.id end)
-  return tracks
-end
-
 --- Index of the line point closest (2D) to pos.
 function Practice.NearestIndex(pts, pos)
   local best, bestD = 1, math.huge
