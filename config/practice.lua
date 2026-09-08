@@ -48,17 +48,24 @@ Config.Practice.ai = {
         lossantos = {
             models       = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' },
             engineSounds = false,
-            physics      = { vmax = 88.0, vmin = 16.0, aLat = 22.0, aBrake = 26.0, aAccel = 18.0 },
-            cruiseSpeed  = 45.0,
+            physics      = { vmax = 92.0, vmin = 18.0, aLat = 25.0, aBrake = 30.0, aAccel = 26.0 },
+            cruiseSpeed  = 50.0,
             tunePreset   = 'Race',
-            topSpeedBoost = 0,
+            topSpeedBoost = 10,
+            paceVariance = 0.12,
+            aware = {
+                range = 40.0, lateral = 6.0, minSpeed = 12.0, overtakeOffset = 3.2, passWithin = 30.0,
+                closeGap = 7.0, closeLateral = 2.5, closeFactor = 0.92,
+                slipRange = 30.0, slipLateral = 3.0, slipBonus = 1.09,
+                lateBrakeRange = 25.0, lateBrakeFactor = 1.12,
+                defendRange = 20.0, defendOffset = 2.5, bendLookahead = 5,
+            },
             aimSeconds   = 1.6,
             aimMinPts    = 3,
             aimCornerPts = 2,
             aimMaxTurnDeg = 22,
             aimMaxCut    = 0.7,
             laneJitter   = 0.3,
-            paceVariance = 0.10,
             variants     = 6,
             varyAmplitude = 1.8,
             varyCornerScale = 0.2,
@@ -182,7 +189,7 @@ Config.Practice.mode = {
     keepLaps      = 5,       -- rolling average over this many laps
     -- AI pace against the best rolling average among players on the track:
     defaultPace   = 1.0,     -- grid pace when nobody on the track has an average yet
-    margin        = 0.08,    -- AI aims to lap this fraction quicker than that average
+    margin        = 0.12,    -- AI aims to lap this fraction quicker than that average
     minPace       = 1.00,
     maxPace       = 1.35,    -- the AI may run beyond the physics profile; the human edge is the edge
     clearMargin   = 60.0,    -- players within line extent + this (m) are moved off at GO
