@@ -71,6 +71,10 @@ Config.Leaderboard = {
     -- texture dictionary streamed in after the first attempt still shows the live board.
     signCoords = vector3(-2869.0, 8427.4, 87.7),
     signRadius = 300.0,
+    -- Placed signs (/placesign at the other tracks): the LED panel plus a stand under it.
+    -- height = how far above the director's feet the panel base sits; flip turns the panel
+    -- to face the director's heading (the model faces away from its own heading).
+    signStand = { model = 'prop_scafold_01a', height = 4.0, zOffset = 0.0, flip = true },
     -- Sponsor slides for the three ad panels on the board (paths inside html/).
     adUrls = { "ads/dps_1.png", "ads/dps_2.png", "ads/dps_3.png" },
 }
