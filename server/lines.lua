@@ -94,10 +94,11 @@ lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
         local physics = (per and per.physics) or ai.physics or {}
         local variants = (per and per.variants) or ai.variants or 0
         local amplitude = (per and per.varyAmplitude) or ai.varyAmplitude or 2.5
+        local cornerScale = (per and per.varyCornerScale) or ai.varyCornerScale or 1.0
         local set = { { name = name, pts = pts, closed = closed } }
         for k = 1, variants do
           set[#set + 1] = { name = ('%s#%d'):format(name, k), closed = closed,
-            pts = Lines.Vary(pts, k * 7919 + #pts, amplitude, closed) }
+            pts = Lines.Vary(pts, k * 7919 + #pts, amplitude, closed, cornerScale) }
         end
         for _, L in ipairs(set) do
           Lines.SpeedProfilePhysics(L.pts, closed, physics)

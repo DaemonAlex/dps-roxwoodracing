@@ -68,9 +68,28 @@ end
 --- A variant of a line: a smooth lateral drift (sum of three slow sine waves, random
 --- phase from `seed`) of at most `amplitude` metres either side, then smoothed. Same
 --- point count as the source so indices still line up. Deterministic per seed.
-function Lines.Vary(pts, seed, amplitude, closed)
+--- Bend at point i: heading change (degrees) between the segment before and the one after, over
+--- a window of `w` points each side, so a 12 m sampling does not read every wobble as a corner.
+local function bendDeg(pts, i, n, closed, w)
+  local function at(j)
+    if closed then return pts[((j - 1) % n) + 1] end
+    if j < 1 then return pts[1] elseif j > n then return pts[n] end
+    return pts[j]
+  end
+  local a, b, c = at(i - w), at(i), at(i + w)
+  local h1 = math.atan(b.y - a.y, b.x - a.x)
+  local h2 = math.atan(c.y - b.y, c.x - b.x)
+  local d = math.abs(h2 - h1)
+  if d > math.pi then d = 2 * math.pi - d end
+  return math.deg(d)
+end
+
+--- cornerScale (0..1, default 1): fraction of the amplitude kept inside bends, so a pack can
+--- spread across a straight and still pinch onto the line through the corners.
+function Lines.Vary(pts, seed, amplitude, closed, cornerScale)
   local n = #pts
   if n < 3 then return pts end
+  cornerScale = cornerScale or 1.0
   local state = (seed or 1) % 2147483647
   local function rand()
     state = (state * 48271) % 2147483647
@@ -88,6 +107,10 @@ function Lines.Vary(pts, seed, amplitude, closed)
     local u = (i - 1) / n * 2 * math.pi
     local off = 0.0
     for _, t in ipairs(terms) do off = off + t.amp * math.sin(t.freq * u + t.phase) end
+    if cornerScale < 1.0 then
+      local bend = math.min(1.0, bendDeg(pts, i, n, closed, 3) / 12.0)   -- 12 degrees over 6 points = a corner
+      off = off * (1.0 - bend * (1.0 - cornerScale))
+    end
     local a = pts[i]
     local b = pts[i + 1] or (closed and pts[1]) or pts[i]
     local dx, dy = b.x - a.x, b.y - a.y
