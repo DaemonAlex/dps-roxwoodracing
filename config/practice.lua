@@ -48,6 +48,8 @@ Config.Practice.ai = {
         lossantos = {
             models       = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' },
             engineSounds = false,
+            cars         = 8,
+            staggerMs    = 20000,
             physics      = { vmax = 92.0, vmin = 18.0, aLat = 17.0, aBrake = 24.0, aAccel = 24.0 },
             cruiseSpeed  = 50.0,
             tunePreset   = 'Race',
