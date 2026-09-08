@@ -50,6 +50,7 @@ Config.Practice.ai = {
                 { label = 'Hypercar',   models = { 'alplmu2025', 'amrlmh', 'bmwlmu2025', 'fer49p2025', 'peulmu2025', 'toyotaGR2025' }, engineSounds = false },
                 { label = 'GT3',        models = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' }, engineSounds = false },
                 { label = 'NASCAR',     models = { 'nextgen', 'camrynascar', 'fusionnas', 'hotring' }, engineSounds = { 'lg44nascarv8' } },
+                { label = 'Superbike',  models = { 'bati', 'bati2', 'hakuchou2', 'akuma', 'carbonrs', 'double', 'vortex', 'defiler', 'hakuchou', 'shinobi', 'reever' } },
             },
         },
         -- Los Santos Circuit (Vinewood track): GT3 grid, each car on its own engine bank
@@ -62,6 +63,7 @@ Config.Practice.ai = {
                 { label = 'Hypercar',  models = { 'alplmu2025', 'amrlmh', 'bmwlmu2025', 'fer49p2025', 'peulmu2025', 'toyotaGR2025' }, engineSounds = false },
                 { label = 'Touring',   models = { '2017M4DTM', 'castrolsupra', 'Mirage', 'fmjb' }, engineSounds = false },
                 { label = 'Open Wheel', models = { 'openwheel1', 'openwheel2', 'formula', 'formula2' } },
+                { label = 'Superbike',  models = { 'bati', 'bati2', 'hakuchou2', 'akuma', 'carbonrs', 'double', 'vortex', 'defiler', 'hakuchou', 'shinobi', 'reever' } },
             },
             models       = { 'sg720sgt3', 'sgamggt3', 'sgfordgt3', 'sgngtrgt3', 'sgr8lmsevo', '296gt3' },
             engineSounds = false,
