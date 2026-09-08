@@ -388,7 +388,14 @@ startSteering = function()
             c.prog = bestI; c.lastProg = now
           end
           -- pace for this stretch of line: its speed profile x this car's pace factor x grid pace
-          c.cruise = setSpeed(c.pts[c.prog].v or cfg.cruiseSpeed or 30.0, c.vmax) * c.pace * paceMult
+          local target = c.pts[c.prog].v or cfg.cruiseSpeed or 30.0
+          -- accelLead (set): on the way out of a corner, chase the target a few points ahead
+          local lead = gridSet and gridSet.accelLead or 0
+          for k = 1, lead do
+            local q = c.pts[Practice.NextIndex(c.prog, c.n, k)]
+            if q and q.v and q.v > target then target = q.v end
+          end
+          c.cruise = setSpeed(target, c.vmax) * c.pace * paceMult
           raceLogic(c, others)
           -- Aim point scales with speed so the car never overshoots its own target.
           local aim = Practice.AimPoints(GetEntitySpeed(c.veh), cfg.aimSeconds or 2.0, Config.Practice.recordSpacing or 12.0,
