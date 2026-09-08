@@ -1,5 +1,6 @@
 -- Practice line storage: one row per named line, recorded by a Race Director.
 local TABLE = 'dps_roxwoodracing_lines'
+local trackOf = nil    -- line name -> track id, rebuilt after every save
 Lines = Lines or {}
 Lines.TABLE = TABLE
 local cache = {}
@@ -58,7 +59,6 @@ end)
 -- The lines the AI practice cars run (all stored lines, or Config.Practice.ai.lineNames),
 -- smoothed and cached until a line is re-recorded.
 -- Track of each stored line (Practice.Cluster over the raw lines), for per-track physics.
-local trackOf = nil
 local function trackFor(name)
   if not trackOf then
     local raw = {}
