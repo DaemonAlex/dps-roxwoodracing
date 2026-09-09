@@ -100,7 +100,11 @@ RegisterCommand('placesign', function(_, args)
   if args[1] == 'clear' then TriggerServerEvent('dps-roxwoodracing:sign:clear', track) return end
   local ped = PlayerPedId()
   local c = GetEntityCoords(ped)
-  TriggerServerEvent('dps-roxwoodracing:sign:place', track, c.x, c.y, c.z, GetEntityHeading(ped))
+  -- Store the ground under the director, not the ped root (which sits about a metre up):
+  -- place() treats the stored z as ground level for the stand.
+  local found, groundZ = GetGroundZFor_3dCoord(c.x, c.y, c.z + 0.5, false)
+  local z = found and groundZ or (c.z - 1.0)
+  TriggerServerEvent('dps-roxwoodracing:sign:place', track, c.x, c.y, z, GetEntityHeading(ped))
 end, false)
 
 RegisterCommand('signstatus', function()
