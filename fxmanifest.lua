@@ -61,6 +61,8 @@ files {
   'html/led.html',
   'html/BarlowCondensed-Bold.ttf',
   'html/ads/*.png',
+  'html/video/*.webm',
+  'html/video/*.mp4',
 }
 
 file 'stream/def_amir_speedway.ytyp'

@@ -79,6 +79,11 @@ Config.Leaderboard = {
     signStand = { model = 0xf1117f99, height = 49.35, zOffset = 0.0, flip = true },
     -- Sponsor slides for the three ad panels on the board (paths inside html/).
     adUrls = { "ads/dps_1.png", "ads/dps_2.png", "ads/dps_3.png" },
+    -- Raceway mode at the other tracks (LS Circuit, Grand Senora): the board shows the
+    -- raceway name, these trackside sponsors in rotation, and a video clip on the third tile
+    -- when racewayVideo names a file under html/ (webm or mp4; drop one in and set the name).
+    racewayAds = { "MICHELIN", "elf", "PIRELLI", "BAHCO", "PIT STOP CAFE", "HYPERCAR", "DHL", "GULF", "RACE DAY" },
+    racewayVideo = "video/raceway.webm",
 }
 
 

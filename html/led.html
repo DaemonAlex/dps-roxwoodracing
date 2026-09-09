@@ -34,6 +34,12 @@
                 background-image: url('ads/dps_1.png');
                 background-size: cover
             }
+            .pulse { animation: pulse 2.4s ease-in-out infinite; }
+            @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .72; transform: scale(1.04); } }
+            .adIn { animation: adin .6s ease-out; }
+            @keyframes adin { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+            .ticker { display: inline-block; animation: ticker 14s linear infinite; }
+            @keyframes ticker { from { transform: translateX(256px); } to { transform: translateX(-100%); } }
         </style>
     </head>
     <body style="background-color: #000000;">
@@ -155,6 +161,39 @@
                 });
                 leaderboardUpdateAsText("", ["", "", "", "", "", "", "", "", ""]);
 
+                // Raceway mode (tracks other than Roxwood): tile 1 the raceway name, pulsing;
+                // tile 2 rotating trackside sponsors; tile 3 a video clip when the resource ships
+                // one (html/video/raceway.webm), else a running ticker. name = null restores the ads.
+                const tileStyle = 'width:256px;height:128px;display:flex;align-items:center;justify-content:center;text-align:center;box-sizing:border-box;overflow:hidden;';
+                let adTimer = null;
+                function setRaceway(name, ads, video) {
+                    window.boardHeader = name;
+                    const t1 = document.getElementById('slot_ad1'), t2 = document.getElementById('slot_ad2'), t3 = document.getElementById('slot_ad3');
+                    if (adTimer) { clearInterval(adTimer); adTimer = null; }
+                    if (!name) {
+                        for (const t of [t1, t2, t3]) t.innerHTML = '';
+                        if (window.lastAds) { crossFadeAd('slot_ad1', window.lastAds[0]); crossFadeAd('slot_ad2', window.lastAds[1]); crossFadeAd('slot_ad3', window.lastAds[2]); }
+                        return;
+                    }
+                    for (const t of [t1, t2, t3]) { t.style.backgroundImage = 'none'; t.innerHTML = ''; }
+                    t1.innerHTML = '<div class="pulse" style="' + tileStyle + 'color:#ffb347;font-size:42px;line-height:0.95;padding:0 8px;">' + escapeHtml(name) + '</div>';
+                    const pool = (ads && ads.length) ? ads : ['RACE DAY'];
+                    let i = 0;
+                    const showAd = () => {
+                        const ad = pool[i % pool.length]; i++;
+                        const hue = (i * 47) % 360;
+                        t2.innerHTML = '<div class="adIn" style="' + tileStyle + 'font-size:40px;line-height:0.95;padding:0 8px;color:hsl(' + hue + ',90%,70%);">' + escapeHtml(ad) + '</div>';
+                    };
+                    showAd(); adTimer = setInterval(showAd, 5000);
+                    const ticker = () => { t3.innerHTML = '<div style="' + tileStyle + 'justify-content:flex-start;"><div class="ticker" style="white-space:nowrap;font-size:40px;color:#ffffff;">' + escapeHtml(name + '  •  ' + pool.join('  •  ') + '  •  ') + '</div></div>'; };
+                    if (video) {
+                        const v = document.createElement('video');
+                        v.src = video; v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+                        v.style.cssText = 'width:256px;height:128px;object-fit:cover;';
+                        v.onerror = ticker;
+                        t3.innerHTML = ''; t3.appendChild(v);
+                    } else ticker();
+                }
                 window.addEventListener('message', (event) => {
                     if (event.data && event.data.type === 'playerNames') {
                         leaderboardUpdateAsNames(event.data.title, event.data.players);
@@ -167,17 +206,8 @@
                         crossFadeAd("slot_ad1", event.data.url[0]);
                         crossFadeAd("slot_ad2", event.data.url[1]);
                         if (!window.boardHeader) crossFadeAd("slot_ad3", event.data.url[2]);
-                    } else if (event.data && event.data.type === 'header') {
-                        // track name on the third ad tile (other tracks); empty = the ad comes back
-                        window.boardHeader = event.data.text || null;
-                        const tile = document.getElementById('slot_ad3');
-                        if (window.boardHeader) {
-                            tile.style.backgroundImage = 'none';
-                            tile.innerHTML = '<div style="width:256px;height:128px;display:flex;align-items:center;justify-content:center;text-align:center;color:#ffb347;font-size:44px;line-height:0.95;padding:0 8px;box-sizing:border-box;">' + escapeHtml(window.boardHeader) + '</div>';
-                        } else {
-                            tile.innerHTML = '';
-                            if (window.lastAds) crossFadeAd("slot_ad3", window.lastAds[2]);
-                        }
+                    } else if (event.data && event.data.type === 'raceway') {
+                        setRaceway(event.data.name || null, event.data.ads || [], event.data.video || null);
                     }
                 });
             }

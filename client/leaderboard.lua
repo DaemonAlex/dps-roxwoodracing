@@ -102,8 +102,10 @@ CreateThread(function()
     -- runs with the sign streamed in. One-shot per approach, no polling of our own.
     -- Track name on the board (third ad tile) while near a track that names one
     AddEventHandler('dps-roxwoodracing:practice:trackChanged', function(id)
-        local names = (Config.Practice and Config.Practice.trackBlips and Config.Practice.trackBlips.boardNames) or {}
-        if DuiObject then SendDuiMessage(DuiObject, json.encode({ type = 'header', text = id and names[id] or '' })) end
+        local tb = (Config.Practice and Config.Practice.trackBlips) or {}
+        local name = id and tb.boardNames and tb.boardNames[id] or nil
+        local video = (Config.Leaderboard.racewayVideo and Config.Leaderboard.racewayVideo ~= '') and ('nui://dps-roxwoodracing/html/' .. Config.Leaderboard.racewayVideo) or nil
+        if DuiObject then SendDuiMessage(DuiObject, json.encode({ type = 'raceway', name = name, ads = Config.Leaderboard.racewayAds or {}, video = video })) end
     end)
     AddEventHandler('dps-roxwoodracing:sign:nearby', function()
         CreateThread(function() ApplyReplacement("placed sign") end)
