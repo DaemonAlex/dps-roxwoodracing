@@ -74,7 +74,9 @@ Config.Leaderboard = {
     -- Placed signs (/placesign at the other tracks): the LED panel plus a stand under it.
     -- height = how far above the director's feet the panel base sits; flip turns the panel
     -- to face the director's heading (the model faces away from its own heading).
-    signStand = { model = 'prop_scafold_01a', height = 4.0, zOffset = 0.0, flip = true },
+    -- The raceway tower (Roxwood map entity 0xf1117f99 at the sign's x/y, ground 38.3; the
+    -- panel sits 49.35 m above its origin). model may be a name or a joaat hash number.
+    signStand = { model = 0xf1117f99, height = 49.35, zOffset = 0.0, flip = true },
     -- Sponsor slides for the three ad panels on the board (paths inside html/).
     adUrls = { "ads/dps_1.png", "ads/dps_2.png", "ads/dps_3.png" },
 }

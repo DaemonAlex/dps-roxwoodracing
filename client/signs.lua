@@ -22,8 +22,10 @@ local function place(row)
   -- at its base, so lift it by the model's lower extent and drop it on the ground from there.
   local mn, mx = GetModelDimensions(hash)
   local stand = (Config.Leaderboard and Config.Leaderboard.signStand) or {}
-  local lift = stand.height or 0.0                      -- panel base sits on top of the stand
-  local z = row.z - mn.z + lift
+  local lift = stand.height or 0.0
+  -- With a stand: the stand origin sits at the director's feet and the panel origin `height`
+  -- above it, the same offsets as the raceway ymap. Without one: the panel base on the ground.
+  local z = stand.model and (row.z + lift) or (row.z - mn.z)
   local heading = (row.h + (stand.flip and 180.0 or 0.0)) % 360.0
   local obj = CreateObjectNoOffset(hash, row.x, row.y, z, false, false, false)
   if obj == 0 then log('object create refused') return end
@@ -31,20 +33,19 @@ local function place(row)
   SetEntityHeading(obj, heading)
   -- the stand: a vanilla prop under the panel (the raceway sign hangs off the map's own tower)
   if stand.model then
-    local sh = joaat(stand.model)
+    local sh = type(stand.model) == 'number' and stand.model or joaat(stand.model)
     if IsModelValid(sh) then
       RequestModel(sh); local dl = GetGameTimer() + 5000
       while not HasModelLoaded(sh) and GetGameTimer() < dl do Wait(50) end
       if HasModelLoaded(sh) then
-        local smn = GetModelDimensions(sh)
-        local so = CreateObjectNoOffset(sh, row.x, row.y, row.z - smn.z + (stand.zOffset or 0.0), false, false, false)
+        local so = CreateObjectNoOffset(sh, row.x, row.y, row.z + (stand.zOffset or 0.0), false, false, false)
         if so ~= 0 then
           SetEntityHeading(so, heading); FreezeEntityPosition(so, true); SetEntityLodDist(so, 3000)
           objects[row.track .. '#stand'] = so
         end
         SetModelAsNoLongerNeeded(sh)
       end
-    else log(('stand model %s not valid'):format(stand.model)) end
+    else log(('stand model %s not valid'):format(tostring(stand.model))) end
   end
   FreezeEntityPosition(obj, true)
   SetEntityLodDist(obj, (Config.Leaderboard and Config.Leaderboard.signLodDistance) or 3000)
