@@ -163,9 +163,21 @@
                     } else if (event.data && event.data.type === 'playerText') {
                         leaderboardUpdateAsText(event.data.title, event.data.players);
                     } else if (event.data && event.data.type === 'ads') {
+                        window.lastAds = event.data.url;
                         crossFadeAd("slot_ad1", event.data.url[0]);
                         crossFadeAd("slot_ad2", event.data.url[1]);
-                        crossFadeAd("slot_ad3", event.data.url[2]);
+                        if (!window.boardHeader) crossFadeAd("slot_ad3", event.data.url[2]);
+                    } else if (event.data && event.data.type === 'header') {
+                        // track name on the third ad tile (other tracks); empty = the ad comes back
+                        window.boardHeader = event.data.text || null;
+                        const tile = document.getElementById('slot_ad3');
+                        if (window.boardHeader) {
+                            tile.style.backgroundImage = 'none';
+                            tile.innerHTML = '<div style="width:256px;height:128px;display:flex;align-items:center;justify-content:center;text-align:center;color:#ffb347;font-size:44px;line-height:0.95;padding:0 8px;box-sizing:border-box;">' + escapeHtml(window.boardHeader) + '</div>';
+                        } else {
+                            tile.innerHTML = '';
+                            if (window.lastAds) crossFadeAd("slot_ad3", window.lastAds[2]);
+                        }
                     }
                 });
             }

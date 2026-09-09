@@ -535,6 +535,7 @@ local function armTracks()
         if curTrack and curTrack ~= t then despawn() end
         curTrack, nearTrack = t, true
         useTrackCfg(t)
+        TriggerEvent('dps-roxwoodracing:practice:trackChanged', t.id)
         TriggerServerEvent('dps-roxwoodracing:practice:enter', t.id)
         CreateThread(spawn)
       end,
@@ -542,6 +543,7 @@ local function armTracks()
         if curTrack ~= t then return end
         curTrack, nearTrack = nil, false
         useTrackCfg(nil)
+        TriggerEvent('dps-roxwoodracing:practice:trackChanged', nil)
         clockStart = nil
         TriggerServerEvent('dps-roxwoodracing:practice:leave')
         despawn()

@@ -24,6 +24,9 @@ Config.Practice.trackJoinRadius = 1500.0
 Config.Practice.trackBlips = {
     enabled = true,
     names   = { grandsenora = 'Grand Senora Raceway', lossantos = 'Los Santos Circuit' },
+    -- Shown on the LED board's third tile while near that track (the raceway tower is painted
+    -- "Roxwood Raceway" and keeps its ads). Two short lines read best at 256 px.
+    boardNames = { grandsenora = 'GRAND SENORA', lossantos = 'LS CIRCUIT' },
 }
 
 --- AI PRACTICE CARS
