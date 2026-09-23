@@ -1,8 +1,8 @@
 # dps-roxwoodracing
 
-Roxwood Raceway for Del Perro Sands. Lobby-based circuit racing with two modes, NPC pit crews, an in-world LED leaderboard, persistent career stats, staff controls, and a real business behind it: the `roxwoodracing` job, whose society account takes every entry fee and pays every purse.
+Roxwood Raceway for Del Perro Sands. Lobby-based circuit racing with two modes, an AI practice grid that laps the circuit whenever nobody is racing, a practice mode with lap clock and adaptive AI, NPC pit crews, an in-world LED leaderboard, persistent career stats, staff controls, and a real business behind it: the `roxwoodracing` job, whose society account takes every entry fee and pays every purse.
 
-Version 3.0.0. Descended from [max_rox_speedway](https://github.com/MaxSuperTech/max_rox_speedway) by MaxSuperTech, via rox_speedway (DrCannabis / DaemonAlex). Everything from v3.0 onward is the DPS port; the history is in `CHANGELOG.md`, the design in `docs/superpowers/specs/`, the build plan in `docs/superpowers/plans/`.
+Version 3.1.0. Descended from [max_rox_speedway](https://github.com/MaxSuperTech/max_rox_speedway) by MaxSuperTech, via rox_speedway (DrCannabis / DaemonAlex). Everything from v3.0 onward is the DPS port; the history is in `CHANGELOG.md`, the design in `docs/superpowers/specs/`, the build plan in `docs/superpowers/plans/`.
 
 ---
 
@@ -11,19 +11,20 @@ Version 3.0.0. Descended from [max_rox_speedway](https://github.com/MaxSuperTech
 1. [What it does](#what-it-does)
 2. [How a race runs](#how-a-race-runs)
 3. [Spec and Open modes](#spec-and-open-modes)
-4. [Money](#money)
-5. [The job and staff controls](#the-job-and-staff-controls)
-6. [Requirements and what is detected](#requirements-and-what-is-detected)
-7. [Install](#install)
-8. [Configuration reference](#configuration-reference)
-9. [Commands and keys](#commands-and-keys)
-10. [Database](#database)
-11. [Events, callbacks and exports](#events-callbacks-and-exports)
-12. [Layout](#layout)
-13. [Tests](#tests)
-14. [Security model](#security-model)
-15. [Troubleshooting](#troubleshooting)
-16. [Credits and license](#credits-and-license)
+4. [Practice: the AI grid and practice mode](#practice-the-ai-grid-and-practice-mode)
+5. [Money](#money)
+6. [The job and staff controls](#the-job-and-staff-controls)
+7. [Requirements and what is detected](#requirements-and-what-is-detected)
+8. [Install](#install)
+9. [Configuration reference](#configuration-reference)
+10. [Commands and keys](#commands-and-keys)
+11. [Database](#database)
+12. [Events, callbacks and exports](#events-callbacks-and-exports)
+13. [Layout](#layout)
+14. [Tests](#tests)
+15. [Security model](#security-model)
+16. [Troubleshooting](#troubleshooting)
+17. [Credits and license](#credits-and-license)
 
 ---
 
@@ -32,15 +33,17 @@ Version 3.0.0. Descended from [max_rox_speedway](https://github.com/MaxSuperTech
 - **Lobbies.** Walk up to the paddock ped, create or join. The host starts the countdown. Four layouts (Short, Drift, Speed, Long) with checkpoint ranking that stays accurate through curves. Concurrent races on different layouts share one grid safely.
 - **Spec mode.** The raceway spawns the cars. Any vehicle the server registers is on the menu, grouped by class, plus the base-game list and the curated presets. The host picks a lobby-wide tune: Stock, Street or Race. Cars are deleted after the race.
 - **Open mode.** Bring a car you own. The server checks the car exists, the plate is yours, you are in the driver seat, and the car fits the class the host chose. You keep the car afterwards, damage and all.
-- **Pit crews.** NPC crews refuel and repair when you stop inside a pit box. Fuel sync is server-authorised (your own race car, inside a pit box, or nothing happens).
+- **Pit crews.** NPC crews (a pool of ten models, random outfits, so no two boxes look alike) refuel and repair when you stop inside a pit box. Fuel sync is server-authorised (your own race car, inside a pit box, or nothing happens).
 - **Ghosting.** Everyone is ghosted at GO until all racers pass the first checkpoint (or a timer runs out). Racers a full lap behind the leader are ghosted so they cannot block.
 - **Results.** A results overlay with positions, total and best lap times, payouts, gold/silver/bronze styling, "fastest lap" and "most improved" badges, and a note when the purse could not be paid.
 - **Persistent stats.** Wins, podiums, races, earnings, spec and open wins, best lap per layout. `/racestats`.
+- **Signs.** `/placesign` (Race Director, standing at a track) stores the LED sign position for that track; every client shows the Roxwood sign model there with that track's practice order. `/placesign clear` removes it.
+- **Tracks.** Stored lines cluster into tracks by location (`Config.Practice.trackJoinRadius`, 1500 m): each circuit gets its own zone, host, AI grid, start line and lap clock, so a second raceway only needs its own `/recordline`. The LED sign, race warnings and track clearing follow the track nearest the sign.
 - **Practice lines.** A Race Director records the racing line once with `/recordline <name>` (drive or walk one easy lap, run it again to save; points every 12 m, stored in `dps_roxwoodracing_lines`). Lines drive the AI practice cars.
 - **AI practice cars.** When no race is live and a player is near the track, an open-wheel grid laps the recorded lines, each car on a random line with its own pace and lane bias, slowing behind and passing other racers. They are local to each client, so they cost the server nothing, and they vanish the moment a race goes live. `Config.Practice.ai` sets the count, models, speed, stagger and awareness.
 - **Practice mode.** Anyone on the track outside a race is practising: crossing the start line starts a lap clock, the next crossing gives the lap time, a personal best and a rolling average of the last five (`practice_best_ms`, `practice_laps`, `practice_recent` in the stats table). One server-elected host client runs the shared AI grid; the AI reacts to every player and its pace follows the best rolling average among players on the track (`Config.Practice.mode`). The sign shows the combined running order. When a lobby is created, practising players are told to finish their lap and clear the track or join; at GO anyone still on the track outside the race is moved to the paddock.
 - **Static pit cars.** A Race Director parks a car and runs `/pitcar`; that model, spot and heading are stored (`dps_roxwoodracing_pitcars`) and every client shows a frozen, locked copy there. `/pitcar clear` removes them all.
-- **LED sign.** A physical leaderboard at the raceway: live positions during a race, best-ever times when idle, refreshed when a record falls. The three ad panels show the DPS sponsor slides in `html/ads/` (`Config.Leaderboard.adUrls`); the texture replacement is re-applied whenever a player comes within `signRadius` of `signCoords`.
+- **LED sign.** A physical leaderboard at the raceway in a bold signage face: live positions during a race, the practice running order while the AI grid runs, best-ever times when idle, refreshed when a record falls. The three ad panels rotate the DPS sponsor slides in `html/ads/` (`Config.Leaderboard.adUrls`); the texture replacement is re-applied whenever a player comes within `signRadius` of `signCoords`.
 - **Staff.** Marshals end stuck races, clear props and switch the sign; Race Directors set fees and purse; the Owner has the boss menu and bank access.
 
 ## How a race runs
@@ -67,6 +70,26 @@ Version 3.0.0. Descended from [max_rox_speedway](https://github.com/MaxSuperTech
 How a race-only car reaches Roxwood without touching the street: the paddock garage (a jg-advancedgarages location added at install). Pull it there, race it, park it there. That garage also receives prize cars.
 
 **Tune presets** are mod indices applied with `SetVehicleMod`: Street = engine, brakes, gearbox level 2; Race = the highest available of each plus turbo. Change or add presets in `Config.Tune`; the menu order is `Config.TuneOrder`.
+
+## Practice: the AI grid and practice mode
+
+Whenever no race is live, the circuit is not empty.
+
+**The line.** A Race Director drives (or walks) one lap with `/recordline main`; the server stores a point every 12 m. On serve the line is lightly smoothed, the overlapping tail at the start is trimmed so the loop is continuous, and four variants are generated that drift up to 1.5 m either side. Each point carries a target speed computed from the route's geometry: corner radius at every point, corner speed from a lateral-grip figure, a backward braking pass into each bend and a forward acceleration pass out of it (`Config.Practice.ai.physics`). Straights are flat out.
+
+**The grid.** Six open-wheel cars (the four vanilla models, distinct colour pairs, random liveries, full-face helmets, F1 and V10 engine audio from the server's engine-sound pack, Race tune, top-speed lift) are released one every 35 s from 420 m behind the nearest player with a rolling start. Each car takes a random line, its own pace factor and lane bias. Racecraft each tick: a car behind aims for the inside of the next corner, tows up in the slipstream within 25 m, brakes later when attacking, lifts only when right on the car ahead, and on a straight closes the door on an attacker close behind. A stuck car is put back on its line; stuck twice at the same spot, it is moved past it.
+
+**One grid for everyone.** The server elects a host among the players near the track; only the host spawns and drives the cars, which are networked, so every player sees the same six. The server raises their OneSync culling radius so they keep running on the far side of a 4 km lap. When the host leaves, the next player present takes over and the grid re-forms.
+
+**Practice mode.** Any player on the track outside a race is practising. Crossing the start line in a car starts a lap clock; the next crossing gives the lap time, personal best and rolling average of the last five (saved in the stats table). The AI's pace follows the best rolling average among players on the track, aiming a few percent quicker, clamped between a floor and a ceiling (`Config.Practice.mode`), so a new driver has something to chase and a strong one has a fight. The AI reacts to every player's car. The sign shows AI and players together in running order.
+
+**When a race forms.** Creating a lobby tells every practising player to finish the lap and clear the track or join at the paddock. At GO the grid despawns and anyone still on the track outside the race is moved to the paddock with their car.
+
+**Static pit cars.** A Race Director parks a car and runs `/pitcar`; that model, spot and heading are stored and every client shows a frozen, locked copy there. `/pitcar clear` removes them all.
+
+`/practicestatus` prints one line per practice car (distance, speed, lap, progress point, driver seated, stuck resets) to F8, plus host and pace state.
+
+---
 
 ## Money
 
@@ -213,6 +236,36 @@ Migration from rox_speedway: the old `speedway_stats` table is renamed automatic
 | `Economy.minPlayersForPurse` | `2` | Fewer racers than this: pool only |
 | `Economy.maxStaffSetting` | `1000000` | Ceiling for values set from Raceway Control |
 
+### `config/practice.lua`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Practice.recordSpacing` | `12.0` | Metres between stored points while recording |
+| `Practice.minPoints` / `maxPoints` | `10` / `2000` | Recording size limits |
+| `Practice.closeRadius` | `40.0` | End within this of the start = closed loop |
+| `Practice.smoothRadius` / `smoothPasses` | `1` / `1` | Smoothing applied on serve; keep light, wide windows pull corners inward |
+| `Practice.ai.enabled` | `true` | Run the AI grid |
+| `Practice.ai.networked` | `true` | Networked, client-owned cars (engine audio plays); `false` = local |
+| `Practice.ai.lineNames` | `nil` | Lines to use; nil = every stored line |
+| `Practice.ai.variants` / `varyAmplitude` | `4` / `1.5` | Generated variants per line and their max drift (m) |
+| `Practice.ai.cars` | `6` | Grid size |
+| `Practice.ai.models` | four vanilla open-wheelers | Random picks per car; nil = `SpecFallbackVehicles` |
+| `Practice.ai.driverModel` / `driverNames` | `a_m_y_motox_01` / six names | Driver ped and the names shown on the sign |
+| `Practice.ai.engineSounds` | six engine audio names | `ForceVehicleEngineAudio` picks per car; nil keeps the model's own |
+| `Practice.ai.tunePreset` / `topSpeedBoost` | `'Race'` / `100` | Tune applied to each car; `ModifyVehicleTopSpeed` percent |
+| `Practice.ai.releaseBehind` / `releaseSpeed` / `staggerMs` | `35` / `30.0` / `35000` | Release point (points behind the player), rolling-start speed, gap between cars |
+| `Practice.ai.physics` | `vmax 90, vmin 14, aLat 34, aBrake 36, aAccel 26` | Speed profile from geometry (m/s, m/s²) |
+| `Practice.ai.aimSeconds` / `aimMinPts` / `aimMaxPts` | `2.0` / `4` / `14` | Aim point: seconds of travel ahead, clamped |
+| `Practice.ai.aimMaxTurnDeg` / `aimMaxCut` | `25` / `1.5` | Aim never past a bend of this angle, nor where the straight to it leaves the line by more than this |
+| `Practice.ai.aware` | see file | Racecraft: awareness window, pass, slipstream, late braking, close-gap lift, defending |
+| `Practice.ai.stuckMs` / `noProgressMs` / `stuckSkipPts` | `6000` / `15000` / `8` | Stuck detection and the skip-past on a repeat |
+| `Practice.ai.cullRadius` / `lodDistance` | `6000` / `3000` | Server-side culling radius; render distance |
+| `Practice.mode.startRadius` | `15.0` | Start-line trigger radius |
+| `Practice.mode.minLapMs` / `maxLapMs` / `keepLaps` | `20000` / `600000` / `5` | Accepted lap window; rolling-average length |
+| `Practice.mode.defaultPace` / `margin` / `minPace` / `maxPace` | `1.0` / `0.08` / `0.80` / `1.35` | AI pace before any average exists; aim this fraction under the best average; clamps |
+| `Practice.mode.clearMargin` | `60.0` | Players within line extent + this are moved off at GO |
+| `Practice.pitCars.spawnDistance` / `lodDistance` | `300.0` / `3000` | Static pit cars |
+
 ### `config/pit.lua`
 
 `PitCrewZones` (`coords`, `heading`, `radius` per box), `PitCrewModels` (random model + outfit per crew member; missing models are skipped), `PitCrewIdleOffsets`, `PitCrewCrewOffsets`, `PitStopTiming` (`crewWalkSpeed`, `refuelSteps`, `refuelStepMs`, `repairDuration`, `approachTimeout`, `returnTimeout`), `PitCrewIdleAnims`.
@@ -224,6 +277,9 @@ Migration from rox_speedway: the old `speedway_stats` table is renamed automatic
 | `/racestats` | anyone | Career stats |
 | `/lobby` | anyone | Toggle focus on the lobby panel (same as the F2 key) |
 | `/raceway` | Marshal and up | Raceway Control menu |
+| `/recordline <name>` | Race Director | Start recording a practice line (drive or walk); run again to save |
+| `/pitcar` / `/pitcar clear` | Race Director | Store a static pit car where you are parked / remove them all |
+| `/practicestatus` | anyone | F8 dump of the practice grid and mode state |
 
 Key mapping `speedway_lobby_interact` (default F2) can be rebound in FiveM settings.
 
@@ -231,8 +287,10 @@ Key mapping `speedway_lobby_interact` (default F2) can be rebound in FiveM setti
 
 | Table | Purpose |
 |---|---|
-| `dps_roxwoodracing_stats` | One row per citizenid: `total_races`, `wins`, `top3`, `total_earnings`, `best_laps` (JSON keyed by layout, ms), `spec_wins`, `open_wins`, `last_race`. Created on boot; `speedway_stats` is renamed into it if present. |
+| `dps_roxwoodracing_stats` | One row per citizenid: `total_races`, `wins`, `top3`, `total_earnings`, `best_laps` (JSON keyed by layout, ms), `spec_wins`, `open_wins`, `practice_best_ms`, `practice_laps`, `practice_recent` (last five laps, JSON), `last_race`. Created on boot; `speedway_stats` is renamed into it if present. |
 | `dps_roxwoodracing_settings` | `k`/`v` staff overrides (`payout1..3`, `showup`, `bestlap`, `entryfee`). |
+| `dps_roxwoodracing_lines` | Recorded practice lines: `name`, `points` (JSON), `point_count`, `closed`, `citizenid`. Raw as recorded; smoothing, trimming and variants happen on serve. |
+| `dps_roxwoodracing_pitcars` | Static pit cars: `model`, `x`, `y`, `z`, `h`, `citizenid`. |
 
 Reads elsewhere: `player_vehicles` (ownership checks, prize cars, plate uniqueness), `players.charinfo` (offline names on the LED sign), Renewed-Banking's own tables through its exports. The `ALTER TABLE … ADD COLUMN IF NOT EXISTS` migration is MariaDB syntax.
 
@@ -253,6 +311,12 @@ Prefix is `dps-roxwoodracing:`. Client → server events are validated and rate-
 | `lapPassed` | `lobbyName` | Only after every checkpoint |
 | `updateProgress` | `lobbyName, dist` | Clamped, NaN-rejected, rate-limited |
 | `server:setFuel` | `netId, level` | Only your own race car, inside a pit box |
+| `line:save` | `name, points` | Race Director; validated by `shared/lines.lua` |
+| `pitcar:add` / `pitcar:clear` | `model, x, y, z, h` | Race Director |
+| `practice:enter` / `practice:leave` | | Presence near the track; drives host election |
+| `practice:lap` | `ms` | Lap window and cooldown checked; saved to stats |
+| `practice:board` | `title, names` | Host only, once a second, relayed to the sign while no race is live |
+| `practice:keep` | `{ netIds }` | Owner-checked; raises the OneSync culling radius of the host's cars |
 | `staff:action` | `action, payload` | `endRace`, `clearProps`, `signMode` (Marshal), `setSetting` (Director) |
 
 **Callbacks (ox_lib)**: `getLobbies`, `getLobbyPlayers`, `getSpecCatalogue`, `getOpenClasses`, `getPlayerStats`, `staff:snapshot` (staff only).
@@ -270,11 +334,14 @@ fxmanifest.lua
 bridge/         framework detection (init), server API (player, money, job), client job lookups
 integrations/   one file per vendor with a boot-time detect and a fallback:
                 notify, target, keys, fuel (client) · banking, garages (server) · bossmenu (both)
-shared/         pure modules, no natives at load: locale, validate, plates, tune, payouts, ranking
-config/         config, tracks, vehicles, economy, pit
-client/         main (lobby + race flow), hud (NUI), ghost, pit (zones), customs (style + tune), leaderboard (DUI)
-server/         lobbies (catalogue, ownership), race (lobbies, laps, ranking, finish, drops), rewards, stats, staff, leaderboard
-html/           index.html (lobby panel, HUD, results), led.html (sign), LCD font, ad images
+shared/         pure modules, no natives at load: locale, validate, plates, tune, payouts, ranking,
+                lines (validate, smooth, trim, vary, speed profile), practice (aim, racecraft, helpers)
+config/         config, tracks, vehicles, economy, pit, practice
+client/         main (lobby + race flow), hud (NUI), ghost, pit (zones), customs (style + tune), leaderboard (DUI),
+                recorder (/recordline), practice (AI grid, lap clock, board), pitcars (static cars)
+server/         lobbies (catalogue, ownership), race (lobbies, laps, ranking, finish, drops), rewards, stats, staff, leaderboard,
+                lines (store + serve), pitcars, practice (host election, laps, pace target, race forming)
+html/           index.html (lobby panel, HUD, results), led.html (sign), Barlow Condensed Bold, DPS sponsor slides
 stream/         LED sign model and placement
 locales/en.lua
 tests/          lua5.4 runner, stubs, test_*.lua · tools/check.sh
@@ -287,7 +354,7 @@ docs/           install.md, superpowers/specs, superpowers/plans
 ./tools/check.sh
 ```
 
-Syntax-checks every Lua file with `luac5.4 -p`, then runs `tests/run.lua`, which loads `tests/stubs.lua` (fake `exports`, `MySQL`, `GetResourceState`, events) and every `tests/test_*.lua`. Needs Lua 5.4 on the machine. Covered: config loading, bridge detection and money/job calls, client and server integrations, validation, plates, tune, payouts (purse covered / short / solo), ranking, rewards flows, stats migration, catalogue building, ownership checks, staff permissions and caps.
+Syntax-checks every Lua file with `luac5.4 -p`, then runs `tests/run.lua`, which loads `tests/stubs.lua` (fake `exports`, `MySQL`, `GetResourceState`, events) and every `tests/test_*.lua`. Needs Lua 5.4 on the machine. Covered: config loading, bridge detection and money/job calls, client and server integrations, validation, plates, tune, payouts (purse covered / short / solo), ranking, rewards flows, stats migration, catalogue building, ownership checks, staff permissions and caps, line validation, smoothing, closure trim, variants and speed profile, aim distance and curvature caps, racecraft decisions, pace fitting and lap formatting. 62 tests.
 
 ## Security model
 
@@ -309,7 +376,13 @@ Syntax-checks every Lua file with `luac5.4 -p`, then runs `tests/run.lua`, which
 | Raceway Control says "Raceway staff only" | No `roxwoodracing` job | `/setjob <id> roxwoodracing <grade>` |
 | Pit stop refuels visually but fuel drops back | Fuel vendor not detected | Check the client F8 line `[dps-roxwoodracing] fuel: …`; add the export to `integrations/fuel.lua` |
 | Boss menu item missing | Not holding the job, or qbx_management absent | Item is registered only for the job's players; check the boot line `bossmenu: …` |
-| LED sign blank | DUI failed or `Leaderboard.enabled = false` | Client F8 for `Loading leaderboard sign`; the ytyp/ymap in `stream/` must load |
+| LED sign blank | DUI failed or `Leaderboard.enabled = false` | Client F8 for `sign:` lines; the ytyp/ymap in `stream/` must load |
+| LED sign shows a checkerboard with red digits | The texture replacement never applied on that client | That is the model's baked placeholder. F8 should show `sign: texture replacement applied (near sign, model loaded=true)`; if the DUI line says it was not available the problem is client-side CEF |
+| No practice cars | No line stored, or nobody is host | `/recordline main` once; `/practicestatus` shows `host=` and `cars=` |
+| Practice cars vanish mid-lap | OneSync culls networked entities beyond ~424 m of every player | The server raises the radius per car (`practice:keep`); check the server log for the host and `Config.Practice.ai.cullRadius` |
+| Practice cars spawn with no driver | Driver seated after mods touched a far, freshly networked vehicle | Fixed in 3.1: driver is seated first; F8 logs any refusal |
+| Practice cars cut corners or turn in early | Line smoothing too wide, or aim caps loosened | Keep `smoothRadius` at 1; `aimMaxCut` 1.5 |
+| Cars warp back to the start every lap | Line served as open | Server log prints `closed=` on first serve; re-record so the lap ends within `closeRadius` of its start |
 
 ## Credits and license
 

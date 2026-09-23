@@ -98,3 +98,21 @@ TEST('Lines.TrimClosure drops the overlapping tail of a closed loop', function()
   local clean = Lines.TrimClosure(out, 12.0, 40)
   EQ(#clean, 60)                              -- idempotent on a clean loop
 end)
+
+
+TEST('Lines.Vary with cornerScale keeps the drift on straights and pinches it in bends', function()
+  -- a stadium: two 300 m straights joined by two semicircles of radius 60 m, 12 m spacing
+  local pts = {}
+  local function add(x, y) pts[#pts + 1] = { x = x, y = y, z = 0 } end
+  for x = 0, 300, 12 do add(x, 0) end
+  for k = 1, 15 do local a = -math.pi / 2 + k / 16 * math.pi; add(300 + 60 * math.cos(a), 60 + 60 * math.sin(a)) end
+  for x = 300, 0, -12 do add(x, 120) end
+  for k = 1, 15 do local a = math.pi / 2 + k / 16 * math.pi; add(60 * math.cos(a), 60 + 60 * math.sin(a)) end
+  local v = Lines.Vary(pts, 3, 2.0, true, 0.15)
+  local function off(i) return math.abs(v[i].y - pts[i].y) + math.abs(v[i].x - pts[i].x) end
+  local straight, bend = 0, 0
+  for i = 6, 20 do straight = math.max(straight, off(i)) end
+  for i = 30, 38 do bend = math.max(bend, off(i)) end
+  assert(straight > 0.3, 'straights keep some drift: ' .. straight)
+  assert(bend < straight, 'bends drift less than straights: ' .. bend .. ' vs ' .. straight)
+end)

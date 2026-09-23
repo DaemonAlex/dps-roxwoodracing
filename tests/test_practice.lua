@@ -105,3 +105,18 @@ TEST('Practice.ShortName, RollingAvg, PaceMult, FormatMs', function()
   EQ(Practice.PaceMult(nil, 1.0, 100000), nil)
   EQ(Practice.FormatMs(83456), '1:23.456')
 end)
+
+TEST('Practice.Cluster groups lines into tracks by location', function()
+  local function loop(cx, cy, r, n, name)
+    local pts = {}
+    for i = 1, n do local a = (i - 1) / n * 2 * math.pi; pts[i] = { x = cx + r * math.cos(a), y = cy + r * math.sin(a), z = 0 } end
+    return { name = name, pts = pts }
+  end
+  local lines = { loop(0, 0, 500, 40, 'main'), loop(0, 0, 520, 40, 'main#1'), loop(0, 30, 480, 40, 'wide'), loop(9000, 9000, 400, 40, 'desert') }
+  local tracks = Practice.Cluster(lines, 1500.0)
+  assert(#tracks == 2, 'two tracks, got ' .. #tracks)
+  assert(tracks[1].id == 'desert' and tracks[2].id == 'main', 'ids sorted: ' .. tracks[1].id .. ',' .. tracks[2].id)
+  assert(#tracks[2].lines == 3 and tracks[2].lines[1].name == 'main', 'main track keeps 3 lines, base first')
+  assert(tracks[2].radius > 500 and tracks[2].radius < 600, 'merged reach ' .. tracks[2].radius)
+  assert(math.abs(tracks[1].centre.x - 9000) < 1, 'desert centre')
+end)

@@ -1,5 +1,6 @@
 -- Practice line storage: one row per named line, recorded by a Race Director.
 local TABLE = 'dps_roxwoodracing_lines'
+local trackOf = nil    -- line name -> track id, rebuilt after every save
 Lines = Lines or {}
 Lines.TABLE = TABLE
 local cache = {}
@@ -49,6 +50,7 @@ RegisterNetEvent('dps-roxwoodracing:line:save', function(name, points)
   end
   Lines.Save(name, points, info, Bridge.GetPlayerIdentifier(src))
   cache[name] = nil
+  trackOf = nil
   print(('[dps-roxwoodracing] practice line "%s" saved: %d points, %s'):format(name, info.count, info.closed and 'closed loop' or 'open'))
   TriggerClientEvent('dps-roxwoodracing:line:saved', src, true,
     Locale(info.closed and 'line_saved_closed' or 'line_saved_open', name, info.count), name)
@@ -56,6 +58,22 @@ end)
 
 -- The lines the AI practice cars run (all stored lines, or Config.Practice.ai.lineNames),
 -- smoothed and cached until a line is re-recorded.
+-- Track of each stored line (Practice.Cluster over the raw lines), for per-track physics.
+local function trackFor(name)
+  if not trackOf then
+    local raw = {}
+    for _, r in ipairs(Lines.List()) do
+      local pts = Lines.Get(r.name)
+      if pts and #pts > 0 then raw[#raw + 1] = { name = r.name, pts = pts } end
+    end
+    trackOf = {}
+    for _, t in ipairs(Practice.Cluster(raw, Config.Practice.trackJoinRadius)) do
+      for _, L in ipairs(t.lines) do trackOf[L.name] = t.id end
+    end
+  end
+  return trackOf[name]
+end
+
 lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
   local names = Config.Practice.ai and Config.Practice.ai.lineNames
   if not names then
@@ -72,14 +90,20 @@ lib.callback.register('dps-roxwoodracing:practice:lines', function(_)
         print(('[dps-roxwoodracing] practice line "%s": %d points (%d after closure trim), closed=%s'):format(name, raw, #pts, tostring(closed)))
         pts = Lines.Smooth(pts, Config.Practice.smoothRadius or 2, Config.Practice.smoothPasses or 2, closed)
         local ai = Config.Practice.ai or {}
+        local per = ai.perTrack and ai.perTrack[trackFor(name) or '']
+        local physics = (per and per.physics) or ai.physics or {}
+        local variants = (per and per.variants) or ai.variants or 0
+        local amplitude = (per and per.varyAmplitude) or ai.varyAmplitude or 2.5
+        local cornerScale = (per and per.varyCornerScale) or ai.varyCornerScale or 1.0
         local set = { { name = name, pts = pts, closed = closed } }
-        for k = 1, (ai.variants or 0) do
+        for k = 1, variants do
           set[#set + 1] = { name = ('%s#%d'):format(name, k), closed = closed,
-            pts = Lines.Vary(pts, k * 7919 + #pts, ai.varyAmplitude or 2.5, closed) }
+            pts = Lines.Vary(pts, k * 7919 + #pts, amplitude, closed, cornerScale) }
         end
         for _, L in ipairs(set) do
-          Lines.SpeedProfilePhysics(L.pts, closed, ai.physics or {})
+          Lines.SpeedProfilePhysics(L.pts, closed, physics)
         end
+        print(('[dps-roxwoodracing] practice line "%s": track %s, vmax %.0f aLat %.0f'):format(name, tostring(trackFor(name)), physics.vmax or 90.0, physics.aLat or 18.0))
         cache[name] = set
       end
     end
@@ -91,22 +115,33 @@ end)
 -- Practice cars are client-owned networked entities that run a 4 km lap; OneSync culls
 -- a networked entity more than ~424 m from every player. Raise the radius for the
 -- caller's own cars and drivers (retried while the network object is still arriving).
-local function keepEntity(src, netId, tries)
+local function keepEntity(src, netId, tries, first)
+  first = first or tries
   local ent = NetworkGetEntityFromNetworkId(netId)
   if ent and ent ~= 0 and DoesEntityExist(ent) then
-    if NetworkGetEntityOwner(ent) == src then
+    local owner = NetworkGetEntityOwner(ent)
+    if owner == src then
       SetEntityDistanceCullingRadius(ent, (Config.Practice.ai and Config.Practice.ai.cullRadius) or 6000.0)
+      if first - tries > 2 then
+        print(('[dps-roxwoodracing] practice keep: net %d kept after %.1f s'):format(netId, (first - tries) * 0.5))
+      end
+    else
+      print(('[dps-roxwoodracing] practice keep: net %d owned by %s, not %s; culling radius left alone'):format(netId, tostring(owner), tostring(src)))
     end
     return
   end
-  if tries > 0 then SetTimeout(500, function() keepEntity(src, netId, tries - 1) end) end
+  if tries > 0 then
+    SetTimeout(500, function() keepEntity(src, netId, tries - 1, first) end)
+  else
+    print(('[dps-roxwoodracing] practice keep: net %d never appeared on the server (%d s), car will be culled beyond ~424 m'):format(netId, first // 2))
+  end
 end
 
 RegisterNetEvent('dps-roxwoodracing:practice:keep', function(netIds)
   local src = source
   if type(netIds) ~= 'table' or #netIds > 4 then return end
   for _, netId in ipairs(netIds) do
-    if type(netId) == 'number' and netId > 0 then keepEntity(src, netId, 6) end
+    if type(netId) == 'number' and netId > 0 then keepEntity(src, netId, 40) end
   end
 end)
 

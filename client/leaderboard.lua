@@ -100,6 +100,16 @@ CreateThread(function()
     -- Re-apply when a player gets near the sign. If the dictionary was not resident at
     -- startup (Roxwood is far from most spawns) the first registration can miss; this one
     -- runs with the sign streamed in. One-shot per approach, no polling of our own.
+    -- Track name on the board (third ad tile) while near a track that names one
+    AddEventHandler('dps-roxwoodracing:practice:trackChanged', function(id)
+        local tb = (Config.Practice and Config.Practice.trackBlips) or {}
+        local name = id and tb.boardNames and tb.boardNames[id] or nil
+        local video = (Config.Leaderboard.racewayVideo and Config.Leaderboard.racewayVideo ~= '') and ('nui://dps-roxwoodracing/html/' .. Config.Leaderboard.racewayVideo) or nil
+        if DuiObject then SendDuiMessage(DuiObject, json.encode({ type = 'raceway', name = name, ads = Config.Leaderboard.racewayAds or {}, video = video })) end
+    end)
+    AddEventHandler('dps-roxwoodracing:sign:nearby', function()
+        CreateThread(function() ApplyReplacement("placed sign") end)
+    end)
     if Config.Leaderboard.signCoords then
         lib.points.new({
             coords = Config.Leaderboard.signCoords,
