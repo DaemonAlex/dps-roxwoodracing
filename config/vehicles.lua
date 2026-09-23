@@ -41,11 +41,6 @@ Config.SpecFallbackVehicles = {
     { label = "GB200",             model = "gb200"       },  -- Ford RS200 style
     { label = "Tropos Rallye",     model = "tropos"      },  -- Stratos style
 
-    -- Custom WRC (if installed on server)
-    { label = "2023 WRC i20",      model = "2023WRCI20"  },
-    { label = "WRC 2006",          model = "WRC2006"     },
-    { label = "Yaris WRC",         model = "YarisWRC"    },
-
     -- Vans (Best versions only)
     { label = "Youga Custom",      model = "youga4"      },  -- Best Youga version
     { label = "Speedo Custom",     model = "speedo5"     },  -- Best Speedo version
@@ -139,7 +134,7 @@ Config.SpecPresets = {
     Rally = {
         label = "Rally",
         description = "Dirt and mixed surface specialists",
-        vehicles = { "omnis", "gb200", "tropos", "2023WRCI20", "WRC2006", "YarisWRC" },
+        vehicles = { "omnis", "gb200", "tropos" },
     },
 }
 
