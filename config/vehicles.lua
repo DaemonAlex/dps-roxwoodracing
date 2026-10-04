@@ -49,7 +49,7 @@ Config.SpecFallbackVehicles = {
     { label = "Paradise",          model = "paradise"    },  -- Hippie van
 
     -- Trucks (Best versions only)
-    { label = "Yosemite 1500",     model = "yosemite1500"},  -- Best Yosemite version
+    { label = "Yosemite Rancher",  model = "yosemite3"   },  -- Best Yosemite on game build 3095 (yosemite1500 needs 3258+, swapped 2026-09-15)
     { label = "Sandking XL",       model = "sandking"    },  -- Lifted monster truck
     { label = "Kamacho",           model = "kamacho"     },  -- Jeep Gladiator style
     { label = "Riata",             model = "riata"       },  -- Ford Raptor style
@@ -129,7 +129,7 @@ Config.SpecPresets = {
     Vans = {
         label = "Vans & Trucks",
         description = "Big vehicle chaos",
-        vehicles = { "youga4", "speedo5", "moonbeam2", "surfer3", "yosemite1500", "sandking", "kamacho", "riata" },
+        vehicles = { "youga4", "speedo5", "moonbeam2", "surfer3", "yosemite3", "sandking", "kamacho", "riata" },
     },
     Rally = {
         label = "Rally",
