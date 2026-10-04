@@ -56,6 +56,7 @@ server_scripts {
 ui_page 'html/index.html'
 
 files {
+    'html/dps-look.css',  -- DPS bubble look
   'locales/en.lua',
   'html/index.html',
   'html/led.html',
