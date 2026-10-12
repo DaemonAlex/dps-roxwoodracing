@@ -54,14 +54,8 @@ end
 -- collision first and retry briefly. Probe from +1.0 before +5.0 so a pit-garage canopy
 -- above the box is not mistaken for the floor.
 local function groundAt(x, y, z)
-    local deadline = GetGameTimer() + 3000
-    repeat
-        RequestCollisionAtCoord(x, y, z)
-        local found, gz = GetGroundZFor_3dCoord(x, y, z + 1.0, false)
-        if not found then found, gz = GetGroundZFor_3dCoord(x, y, z + 5.0, false) end
-        if found then return gz, true end
-        Wait(50)
-    until GetGameTimer() > deadline
+    local gz = Ground.Z(x, y, z, 3000)
+    if gz then return gz, true end
     return z, false
 end
 
@@ -88,8 +82,10 @@ local function resnapZone(idx)
     end
     for ped, home in pairs(data.home) do
         if DoesEntityExist(ped) and not inPit then
-            local found, gz = GetGroundZFor_3dCoord(home.x, home.y, home.z + 1.0, false)
-            if found and math.abs(gz - home.z) > 0.05 then
+            -- Ground.Z probes above the stored height too, so a ped that was left too low
+            -- at load (config height under the floor) is still found and lifted
+            local gz = Ground.Z(home.x, home.y, home.z, 4000)
+            if gz and math.abs(gz - home.z) > 0.05 then
                 local fixed = vector3(home.x, home.y, gz)
                 SetEntityCoords(ped, fixed.x, fixed.y, fixed.z, false, false, false, false)
                 data.home[ped] = fixed

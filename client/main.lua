@@ -378,6 +378,20 @@ CreateThread(function()
 
     local ped = CreatePed(0, cfg.model, cfg.coords.x, cfg.coords.y, cfg.coords.z - 1.0, cfg.coords.w, false, false)
     FreezeEntityPosition(ped, true)
+    -- The ped is made at player load, usually far from Roxwood, so its ground is not
+    -- loaded yet. Stand it on the ground now if possible, and again whenever someone
+    -- comes near (the ground has loaded by then).
+    local function groundLobbyPed()
+        if Ground.Ped(ped, cfg.coords.x, cfg.coords.y, cfg.coords.z, 8000) then
+            SetEntityHeading(ped, cfg.coords.w)
+        end
+    end
+    CreateThread(groundLobbyPed)
+    lib.points.new({
+        coords = vector3(cfg.coords.x, cfg.coords.y, cfg.coords.z),
+        distance = 120.0,
+        onEnter = function() CreateThread(groundLobbyPed) end,
+    })
     SetEntityInvincible(ped, true)
     SetBlockingOfNonTemporaryEvents(ped, true)
 
@@ -728,8 +742,8 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
         if data.grid then
             SetEntityCoords(veh, data.grid.x, data.grid.y, data.grid.z, false, false, false, true)
             SetEntityHeading(veh, data.grid.w)
-            SetVehicleOnGroundProperly(veh)
         end
+        Ground.Vehicle(veh, 5000)
         FreezeEntityPosition(veh, true)
         SetVehicleEngineOn(veh, true, true, false)
         SetVehicleUndriveable(veh, true)
@@ -738,6 +752,8 @@ RegisterNetEvent("dps-roxwoodracing:prepareStart", function(data)
             repeat Wait(0) until IsPedInAnyVehicle(PlayerPedId(), false)
         end
     else
+        -- The server makes the spec car at the grid slot height; settle it on its wheels first
+        Ground.Vehicle(veh, 5000)
         FreezeEntityPosition(veh, true)
         -- Give keys as early as possible (before any engine state changes)
         Keys.Give(veh, data.plate)
@@ -965,7 +981,7 @@ RegisterNetEvent("dps-roxwoodracing:client:finishTeleport", function(coords, kee
             FreezeEntityPosition(v, false)
             SetEntityCoords(v, coords.x, coords.y, coords.z, false, false, false, true)
             SetEntityHeading(v, coords.w)
-            SetVehicleOnGroundProperly(v)
+            Ground.Vehicle(v, 5000)
         else
             if v ~= 0 then
                 TaskLeaveVehicle(ped, v, 0); Wait(500)
