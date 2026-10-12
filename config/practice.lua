@@ -133,7 +133,7 @@ Config.Practice.ai = {
             cruiseSpeed  = 60.0,
             -- Stock power: no Race tune and no top-speed boost on a 1,500 kg car, the grip
             -- cannot carry it. Longer, smoother aim so the driver stops sawing at the wheel.
-            tunePreset   = Race,
+            tunePreset   = 'Race',   -- was the bare word Race (nil), which fell back to the 'Race' default anyway
             topSpeedBoost = 15,
             aimSeconds   = 1.4,
             aimMinPts    = 3,
@@ -210,6 +210,21 @@ Config.Practice.ai = {
     -- straight at the aim point, no road-node routing). Object/ped steering flags left
     -- out: they make the AI flinch at barriers.
     drivingStyle   = 1 + 4 + 16777216,
+    -- Per-car pace (Damon 2026-10-12): each AI car's speed through every bend comes from its
+    -- own grip, power and top speed after the tune, read from the car itself, instead of one
+    -- number per track. The AI should be a challenge, so it leans on the grip it has.
+    perCar = {
+        enabled    = true,
+        gripUse    = 1.0,    -- share of the car's grip the AI uses in corners (1.0 = the limit)
+        brakeUse   = 1.1,    -- braking as a multiple of cornering grip
+        accelScale = 3.0,    -- fInitialDriveForce x g x this = acceleration out of bends
+    },
+    -- Hand tuning for single models, all multipliers (1.0 = as the car is):
+    --   grip  = corner speed     top   = top speed
+    --   brake = braking          accel = pull out of corners
+    -- e.g. castrolsupra = { grip = 1.05 },  bati = { grip = 0.9 }
+    carTune = {
+    },
 }
 
 --- STATIC PIT CARS

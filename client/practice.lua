@@ -292,6 +292,31 @@ local function spawn()
       SetEntityLoadCollisionFlag(ped, true)
       SetEntityLodDist(veh, cfg.lodDistance or 3000)
       SetEntityLodDist(ped, cfg.lodDistance or 3000)
+      -- Per-car pace: this car's own speed for every point of the line, from its own grip,
+      -- power and top speed after the tune, so a street car brakes for the bends a race
+      -- car takes flat.
+      local lineVmax = L.vmax
+      local perCar = cfg.perCar
+      if perCar and perCar.enabled ~= false then
+        local stats = {
+          top      = GetVehicleEstimatedMaxSpeed(veh) * (1 + (cfg.topSpeedBoost or 0) / 100),
+          traction = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax'),
+          drive    = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fInitialDriveForce'),
+        }
+        local tune = (cfg.carTune or {})[models[i]] or (cfg.carTune or {})[string.lower(models[i])]
+        local phys = Practice.CarPhysics(stats, perCar, tune, cfg.physics)
+        local own = {}
+        for k, q in ipairs(pts) do
+          local p = {}; for key, val in pairs(q) do p[key] = val end
+          own[k] = p
+        end
+        Lines.SpeedProfilePhysics(own, L.closed, phys)
+        pts = own
+        lineVmax = 0.0
+        for _, q in ipairs(own) do if q.v > lineVmax then lineVmax = q.v end end
+        log(('car %d %s: top %.0f m/s, grip %.2f g, drive %.2f -> aLat %.1f aBrake %.1f aAccel %.1f, fastest point %.0f m/s%s'):format(
+          i, models[i], stats.top, stats.traction, stats.drive, phys.aLat, phys.aBrake, phys.aAccel, lineVmax, tune and ' (hand-tuned)' or ''))
+      end
       local v = cfg.paceVariance or 0.08
       local j = cfg.laneJitter or 1.5
       local c = {
@@ -300,8 +325,8 @@ local function spawn()
         bias = -j + 2 * j * math.random(),
         pace = 1 - v + 2 * v * math.random(),
       }
-      c.vmax = L.vmax
-      c.cruise = setSpeed(pts[idx].v or cfg.cruiseSpeed or 30.0, L.vmax) * c.pace
+      c.vmax = lineVmax
+      c.cruise = setSpeed(pts[idx].v or cfg.cruiseSpeed or 30.0, lineVmax) * c.pace
       c.speed = c.cruise
       c.prog = idx
       c.lastProg = GetGameTimer()
