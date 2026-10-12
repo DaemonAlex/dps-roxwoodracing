@@ -223,13 +223,13 @@ Config.Practice.ai = {
     -- "okay to make these AI cars a bit faster and easier to stick to the road"). AI cars only.
     aiAssist = {
         enabled = true,
-        grip    = 1.15,      -- tyre grip x this
-        minGrip = 2.6,       -- ...but never below this (lifts slippery street cars near race grip)
+        grip    = 1.25,      -- tyre grip x this (Damon: "give them an edge")
+        minGrip = 2.8,       -- ...but never below this (lifts slippery street cars near race grip)
         slide   = 0.5,       -- how easily the tyres let go, x this (lower = sticks better)
     },
     perCar = {
         enabled    = true,
-        gripUse    = 0.85,   -- share of the car's grip the AI uses in corners; 0.85 brakes before the bend instead of arriving too hot
+        gripUse    = 0.9,    -- share of the (assisted) grip the AI uses in corners; under 1.0 so it brakes before the bend
         brakeUse   = 1.0,    -- braking as a multiple of cornering grip
         accelScale = 3.0,    -- fInitialDriveForce x g x this = acceleration out of bends
     },
