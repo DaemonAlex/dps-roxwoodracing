@@ -26,7 +26,8 @@ local function spawn(rows)
       RequestCollisionAtCoord(r.x, r.y, r.z)
       local veh = CreateVehicle(hash, r.x, r.y, r.z, r.h, false, false)
       SetEntityAsMissionEntity(veh, true, true)
-      SetVehicleOnGroundProperly(veh)
+      -- Wait for the pit lane's ground before settling; it is frozen right after
+      if not Ground.Vehicle(veh, 8000) then log(('%s not grounded in time'):format(tostring(r.model))) end
       SetVehicleColours(veh, math.random(0, 159), math.random(0, 159))
       local liveries = GetVehicleLiveryCount(veh)
       if liveries and liveries > 0 then SetVehicleLivery(veh, math.random(0, liveries - 1)) end

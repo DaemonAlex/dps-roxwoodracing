@@ -132,7 +132,7 @@ end
 local function placeOnLine(c, pt)
   SetEntityCoords(c.veh, pt.x, pt.y, pt.z + 0.5, false, false, false, false)
   SetEntityHeading(c.veh, pt.h or 0.0)
-  SetVehicleOnGroundProperly(c.veh)
+  Ground.Vehicle(c.veh, 3000)
   SetVehicleFixed(c.veh)
   SetVehicleEngineOn(c.veh, true, true, false)
 end
@@ -254,7 +254,7 @@ local function spawn()
           log(('car %d: no network id after 5 s (veh %d, ped %d); it will be culled beyond ~424 m'):format(i, vehNet, pedNet))
         end
       end
-      SetVehicleOnGroundProperly(veh)
+      Ground.Vehicle(veh, 3000)
       -- Distinct colour per car, random livery where the model has them
       local col = palette[((i - 1) % #palette) + 1]
       SetVehicleColours(veh, col[1], col[2])

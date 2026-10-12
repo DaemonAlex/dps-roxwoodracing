@@ -23,6 +23,7 @@ client_scripts {
   'integrations/fuel.lua',
   'integrations/bossmenu.lua',
   'client/util.lua',
+  'client/ground.lua',
   'client/customs.lua',
   'client/hud.lua',
   'client/ghost.lua',
