@@ -244,6 +244,18 @@ Config.Practice.ai = {
 --- STATIC PIT CARS
 -- Placed in game by a Race Director: park where the car should sit and run /pitcar
 -- (uses that car's model), or run it on foot for a random model. /pitcar clear removes all.
+-- Track boost (Damon 2026-10-12): race cars (registry category race_*) get more power
+-- and grip while they are on a track, and go back to normal when they leave it, so a
+-- race car is a race car at the track and not a monster on the street. Applies to
+-- players' cars; the AI already has its own grip assist (ai.aiAssist).
+Config.Practice.trackBoost = {
+    enabled = true,
+    margin  = 40.0,   -- metres around a track's own racing line that count as on track
+    power   = 1.25,   -- fInitialDriveForce x this (+25 % power)
+    grip    = 1.15,   -- fTractionCurveMax and fTractionCurveMin x this (+15 % grip)
+    notify  = true,   -- a short note when the boost switches on or off
+}
+
 Config.Practice.pitCars = {
     spawnDistance = 300.0,
     models        = nil,   -- random pool when placed on foot; nil = the AI grid models
