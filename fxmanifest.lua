@@ -33,6 +33,7 @@ client_scripts {
   'client/recorder.lua',
   'client/practice.lua',
   'client/pitcars.lua',
+  'client/trackboost.lua',
   'client/signs.lua',
 }
 

@@ -19,6 +19,7 @@ local lines = nil           -- { { name, pts, closed }, ... }
 local tracks = nil          -- Practice.Cluster over lines: { { id, centre, radius, lines }, ... }
 local curTrack = nil        -- the track this client is near (nil = none)
 local trackPoints, startZones, trackBlips = {}, {}, {}
+local boostZones = {}       -- "on the track" zones for the race-car track boost (client/trackboost.lua)
 local startSteering
 local targetLap = nil                         -- best rolling average on the track (ms), from the server
 local paceMult = mode.defaultPace or 0.85     -- grid pace multiplier
@@ -557,7 +558,8 @@ local function armTracks()
   for _, p in ipairs(trackPoints) do p:remove() end
   for _, z in ipairs(startZones) do z:remove() end
   for _, b in ipairs(trackBlips) do if DoesBlipExist(b) then RemoveBlip(b) end end
-  trackPoints, startZones, trackBlips = {}, {}, {}
+  for _, z in ipairs(boostZones) do z:remove() end
+  trackPoints, startZones, trackBlips, boostZones = {}, {}, {}, {}
   local ts = fetchTracks()
   if not ts then return false end
   local home = homeTrack(ts)
@@ -590,6 +592,15 @@ local function armTracks()
         despawn()
       end,
     })
+    local boost = Config.Practice.trackBoost
+    if boost and boost.enabled ~= false then
+      boostZones[#boostZones + 1] = lib.zones.sphere({
+        coords = vector3(t.centre.x, t.centre.y, t.centre.z),
+        radius = t.radius + (boost.margin or 40.0),
+        onEnter = function() TriggerEvent('dps-roxwoodracing:trackboost', t.id, true) end,
+        onExit = function() TriggerEvent('dps-roxwoodracing:trackboost', t.id, false) end,
+      })
+    end
     local s0 = t.lines[1].pts[1]
     startZones[#startZones + 1] = lib.zones.sphere({
       coords = vector3(s0.x, s0.y, s0.z),
