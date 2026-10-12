@@ -219,10 +219,18 @@ Config.Practice.ai = {
     -- Per-car pace (Damon 2026-10-12): each AI car's speed through every bend comes from its
     -- own grip, power and top speed after the tune, read from the car itself, instead of one
     -- number per track. The AI should be a challenge, so it leans on the grip it has.
+    -- AI grip assist (Damon 2026-10-12: cars hit corners too hard and street cars slid all over;
+    -- "okay to make these AI cars a bit faster and easier to stick to the road"). AI cars only.
+    aiAssist = {
+        enabled = true,
+        grip    = 1.25,      -- tyre grip x this (Damon: "give them an edge")
+        minGrip = 2.8,       -- ...but never below this (lifts slippery street cars near race grip)
+        slide   = 0.5,       -- how easily the tyres let go, x this (lower = sticks better)
+    },
     perCar = {
         enabled    = true,
-        gripUse    = 1.0,    -- share of the car's grip the AI uses in corners (1.0 = the limit)
-        brakeUse   = 1.1,    -- braking as a multiple of cornering grip
+        gripUse    = 0.9,    -- share of the (assisted) grip the AI uses in corners; under 1.0 so it brakes before the bend
+        brakeUse   = 1.0,    -- braking as a multiple of cornering grip
         accelScale = 3.0,    -- fInitialDriveForce x g x this = acceleration out of bends
     },
     -- Hand tuning for single models, all multipliers (1.0 = as the car is):

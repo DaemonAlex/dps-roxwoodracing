@@ -292,6 +292,22 @@ local function spawn()
       SetEntityLoadCollisionFlag(ped, true)
       SetEntityLodDist(veh, cfg.lodDistance or 3000)
       SetEntityLodDist(ped, cfg.lodDistance or 3000)
+      -- AI grip assist (Damon 2026-10-12: street cars slid all over, "it's okay to make these AI
+      -- cars a bit faster and easier to stick to the road"). This car only: more tyre grip,
+      -- with a floor so slippery street cars come up near race grip, and tyres that let go
+      -- less easily. Done before the per-car pace below so the pace uses the new grip.
+      local assist = cfg.aiAssist
+      if assist and assist.enabled ~= false then
+        local function hf(field) return GetVehicleHandlingFloat(veh, 'CHandlingData', field) end
+        local function set(field, value) SetVehicleHandlingFloat(veh, 'CHandlingData', field, value) end
+        local tMax, tMin = hf('fTractionCurveMax'), hf('fTractionCurveMin')
+        local newMax = math.max(tMax * (assist.grip or 1.15), assist.minGrip or 2.6)
+        local scale = (tMax > 0) and (newMax / tMax) or 1.0
+        set('fTractionCurveMax', newMax)
+        set('fTractionCurveMin', tMin * scale)
+        set('fTractionLossMult', hf('fTractionLossMult') * (assist.slide or 0.5))
+        set('fLowSpeedTractionLossMult', hf('fLowSpeedTractionLossMult') * (assist.slide or 0.5))
+      end
       -- Per-car pace: this car's own speed for every point of the line, from its own grip,
       -- power and top speed after the tune, so a street car brakes for the bends a race
       -- car takes flat.
