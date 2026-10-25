@@ -247,3 +247,27 @@ function Practice.FormatMs(ms)
   local r = ms % 1000
   return ('%d:%02d.%03d'):format(m, s, r)
 end
+
+--- Driving numbers for one AI car, from that car's own handling after its tune (Damon
+--- 2026-10-12: street cars wiped out on the race-car profile, race cars were held back).
+--- stats: top (m/s, after any top-speed boost), traction (fTractionCurveMax, in g),
+--- drive (fInitialDriveForce). use: how hard the AI leans on the car (gripUse, brakeUse,
+--- accelScale). tune: per-model multipliers { grip, top, brake, accel }. base: track
+--- physics, only its vmin is kept. Returns { vmax, vmin, aLat, aBrake, aAccel }.
+function Practice.CarPhysics(stats, use, tune, base)
+  use, tune, base = use or {}, tune or {}, base or {}
+  local g = 9.81
+  local top = (stats.top or 0) > 0 and stats.top or (base.vmax or 60.0)
+  local traction = (stats.traction or 0) > 0 and stats.traction or 2.0
+  local drive = (stats.drive or 0) > 0 and stats.drive or 0.3
+  local aLat = traction * g * (use.gripUse or 1.0) * (tune.grip or 1.0)
+  local aAccel = drive * g * (use.accelScale or 3.0) * (tune.accel or 1.0)
+  if aAccel < 5.0 then aAccel = 5.0 elseif aAccel > 32.0 then aAccel = 32.0 end
+  return {
+    vmax   = top * (tune.top or 1.0),
+    vmin   = base.vmin or 12.0,
+    aLat   = aLat,
+    aBrake = aLat * (use.brakeUse or 1.1) * (tune.brake or 1.0),
+    aAccel = aAccel,
+  }
+end

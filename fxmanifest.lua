@@ -33,6 +33,7 @@ client_scripts {
   'client/recorder.lua',
   'client/practice.lua',
   'client/pitcars.lua',
+  'client/trackboost.lua',
   'client/signs.lua',
 }
 
@@ -60,6 +61,7 @@ files {
     'html/dps-look.css',  -- DPS bubble look
   'locales/en.lua',
   'html/index.html',
+  'html/dps-logo.svg',  -- house logo in the header (2026-10-10)
   'html/led.html',
   'html/BarlowCondensed-Bold.ttf',
   'html/ads/*.png',

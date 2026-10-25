@@ -19,6 +19,7 @@ local lines = nil           -- { { name, pts, closed }, ... }
 local tracks = nil          -- Practice.Cluster over lines: { { id, centre, radius, lines }, ... }
 local curTrack = nil        -- the track this client is near (nil = none)
 local trackPoints, startZones, trackBlips = {}, {}, {}
+local boostZones = {}       -- "on the track" zones for the race-car track boost (client/trackboost.lua)
 local startSteering
 local targetLap = nil                         -- best rolling average on the track (ms), from the server
 local paceMult = mode.defaultPace or 0.85     -- grid pace multiplier
@@ -292,6 +293,47 @@ local function spawn()
       SetEntityLoadCollisionFlag(ped, true)
       SetEntityLodDist(veh, cfg.lodDistance or 3000)
       SetEntityLodDist(ped, cfg.lodDistance or 3000)
+      -- AI grip assist (Damon 2026-10-12: street cars slid all over, "it's okay to make these AI
+      -- cars a bit faster and easier to stick to the road"). This car only: more tyre grip,
+      -- with a floor so slippery street cars come up near race grip, and tyres that let go
+      -- less easily. Done before the per-car pace below so the pace uses the new grip.
+      local assist = cfg.aiAssist
+      if assist and assist.enabled ~= false then
+        local function hf(field) return GetVehicleHandlingFloat(veh, 'CHandlingData', field) end
+        local function set(field, value) SetVehicleHandlingFloat(veh, 'CHandlingData', field, value) end
+        local tMax, tMin = hf('fTractionCurveMax'), hf('fTractionCurveMin')
+        local newMax = math.max(tMax * (assist.grip or 1.15), assist.minGrip or 2.6)
+        local scale = (tMax > 0) and (newMax / tMax) or 1.0
+        set('fTractionCurveMax', newMax)
+        set('fTractionCurveMin', tMin * scale)
+        set('fTractionLossMult', hf('fTractionLossMult') * (assist.slide or 0.5))
+        set('fLowSpeedTractionLossMult', hf('fLowSpeedTractionLossMult') * (assist.slide or 0.5))
+      end
+      -- Per-car pace: this car's own speed for every point of the line, from its own grip,
+      -- power and top speed after the tune, so a street car brakes for the bends a race
+      -- car takes flat.
+      local lineVmax = L.vmax
+      local perCar = cfg.perCar
+      if perCar and perCar.enabled ~= false then
+        local stats = {
+          top      = GetVehicleEstimatedMaxSpeed(veh) * (1 + (cfg.topSpeedBoost or 0) / 100),
+          traction = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax'),
+          drive    = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fInitialDriveForce'),
+        }
+        local tune = (cfg.carTune or {})[models[i]] or (cfg.carTune or {})[string.lower(models[i])]
+        local phys = Practice.CarPhysics(stats, perCar, tune, cfg.physics)
+        local own = {}
+        for k, q in ipairs(pts) do
+          local p = {}; for key, val in pairs(q) do p[key] = val end
+          own[k] = p
+        end
+        Lines.SpeedProfilePhysics(own, L.closed, phys)
+        pts = own
+        lineVmax = 0.0
+        for _, q in ipairs(own) do if q.v > lineVmax then lineVmax = q.v end end
+        log(('car %d %s: top %.0f m/s, grip %.2f g, drive %.2f -> aLat %.1f aBrake %.1f aAccel %.1f, fastest point %.0f m/s%s'):format(
+          i, models[i], stats.top, stats.traction, stats.drive, phys.aLat, phys.aBrake, phys.aAccel, lineVmax, tune and ' (hand-tuned)' or ''))
+      end
       local v = cfg.paceVariance or 0.08
       local j = cfg.laneJitter or 1.5
       local c = {
@@ -300,8 +342,8 @@ local function spawn()
         bias = -j + 2 * j * math.random(),
         pace = 1 - v + 2 * v * math.random(),
       }
-      c.vmax = L.vmax
-      c.cruise = setSpeed(pts[idx].v or cfg.cruiseSpeed or 30.0, L.vmax) * c.pace
+      c.vmax = lineVmax
+      c.cruise = setSpeed(pts[idx].v or cfg.cruiseSpeed or 30.0, lineVmax) * c.pace
       c.speed = c.cruise
       c.prog = idx
       c.lastProg = GetGameTimer()
@@ -516,7 +558,8 @@ local function armTracks()
   for _, p in ipairs(trackPoints) do p:remove() end
   for _, z in ipairs(startZones) do z:remove() end
   for _, b in ipairs(trackBlips) do if DoesBlipExist(b) then RemoveBlip(b) end end
-  trackPoints, startZones, trackBlips = {}, {}, {}
+  for _, z in ipairs(boostZones) do z:remove() end
+  trackPoints, startZones, trackBlips, boostZones = {}, {}, {}, {}
   local ts = fetchTracks()
   if not ts then return false end
   local home = homeTrack(ts)
@@ -549,6 +592,15 @@ local function armTracks()
         despawn()
       end,
     })
+    local boost = Config.Practice.trackBoost
+    if boost and boost.enabled ~= false then
+      boostZones[#boostZones + 1] = lib.zones.sphere({
+        coords = vector3(t.centre.x, t.centre.y, t.centre.z),
+        radius = t.radius + (boost.margin or 40.0),
+        onEnter = function() TriggerEvent('dps-roxwoodracing:trackboost', t.id, true) end,
+        onExit = function() TriggerEvent('dps-roxwoodracing:trackboost', t.id, false) end,
+      })
+    end
     local s0 = t.lines[1].pts[1]
     startZones[#startZones + 1] = lib.zones.sphere({
       coords = vector3(s0.x, s0.y, s0.z),
