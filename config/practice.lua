@@ -241,6 +241,52 @@ Config.Practice.ai = {
     },
 }
 
+--- BALANCE OF PERFORMANCE (Damon 2026-10-25: a car that suits one track is too fast or too
+-- slow on another). Each car is set to its class's target on the track it is on, for the AI
+-- and for players' cars on track, so every car in a class drives alike. The class is the
+-- grid set the model is listed in at that track (Config.Practice.ai.perTrack.<id>.sets); a
+-- car in no set keeps the old behaviour (ai.topSpeedBoost for the AI, trackBoost for players).
+--   top   = top speed ceiling in m/s (x 3.6 = km/h). Faster cars are capped at it; slower
+--           cars get a power boost toward it (at most maxBoost percent).
+--   grip  = tyre grip (fTractionCurveMax). 2.3 street, 2.7 GT, 3.0+ prototype and open wheel.
+--   power = acceleration (fInitialDriveForce). 0.25 street, 0.34 GT, 0.45 open wheel.
+-- These are starting values: drive them and change the number that feels wrong. A track's
+-- own values go in Config.Practice.balance.tracks.<track id> and win over the class values.
+Config.Practice.balance = {
+    enabled  = true,
+    maxBoost = 60,   -- largest power boost (percent) used to lift a slow car toward its class top speed
+    notify   = true, -- tell a player which class their car was balanced to
+    classes = {
+        ['Open Wheel']   = { top = 88.0, grip = 3.20, power = 0.45 },   -- 317 km/h
+        ['Hypercar']     = { top = 86.0, grip = 3.00, power = 0.42 },   -- 310 km/h
+        ['GT3']          = { top = 76.0, grip = 2.75, power = 0.34 },   -- 274 km/h
+        ['Super GT']     = { top = 76.0, grip = 2.75, power = 0.34 },
+        ['NASCAR']       = { top = 82.0, grip = 2.50, power = 0.36 },   -- 295 km/h
+        ['Sprint Car']   = { top = 62.0, grip = 2.60, power = 0.40 },
+        ['Rally']        = { top = 58.0, grip = 2.50, power = 0.30 },   -- 209 km/h
+        ['Superbike']    = { top = 78.0, grip = 2.60, power = 0.38 },
+        ['JDM']          = { top = 64.0, grip = 2.50, power = 0.28 },   -- 230 km/h
+        ['Classics']     = { top = 58.0, grip = 2.30, power = 0.24 },
+        ['Retro Racing'] = { top = 60.0, grip = 2.40, power = 0.26 },
+        ['Muscle']       = { top = 62.0, grip = 2.30, power = 0.30 },
+        ['Trucks']       = { top = 50.0, grip = 2.20, power = 0.30 },   -- 180 km/h
+    },
+    tracks = {
+        -- Grand Senora: a short oval, so the fast classes are held to what its bends can carry.
+        grandsenora = {
+            ['Hypercar']   = { top = 75.0 },
+            ['GT3']        = { top = 68.0 },
+            ['Super GT']   = { top = 68.0 },
+            ['NASCAR']     = { top = 72.0 },
+        },
+        -- Los Santos Circuit: a street course with short straights.
+        lossantos = {
+            ['Open Wheel'] = { top = 80.0 },
+            ['Hypercar']   = { top = 80.0 },
+        },
+    },
+}
+
 --- STATIC PIT CARS
 -- Placed in game by a Race Director: park where the car should sit and run /pitcar
 -- (uses that car's model), or run it on foot for a random model. /pitcar clear removes all.

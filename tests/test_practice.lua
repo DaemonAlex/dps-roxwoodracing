@@ -120,3 +120,36 @@ TEST('Practice.Cluster groups lines into tracks by location', function()
   assert(tracks[2].radius > 500 and tracks[2].radius < 600, 'merged reach ' .. tracks[2].radius)
   assert(math.abs(tracks[1].centre.x - 9000) < 1, 'desert centre')
 end)
+
+TEST('Practice.ClassOf finds the first set that lists a model, any case', function()
+  local sets = { { label = 'GT3', models = { 'sg720sgt3', '296gt3' } }, { label = 'Classics', models = { 'Torero' } },
+    { label = 'Retro Racing', models = { 'torero' } } }
+  EQ(Practice.ClassOf(sets, '296GT3'), 'GT3')
+  EQ(Practice.ClassOf(sets, 'torero'), 'Classics')
+  EQ(Practice.ClassOf(sets, 'adder'), nil)
+  EQ(Practice.ClassOf(nil, 'adder'), nil)
+end)
+
+TEST('Practice.BalanceTarget lays the track values over the class values', function()
+  local classes = { GT3 = { top = 76.0, grip = 2.75, power = 0.34 } }
+  local track = { GT3 = { top = 68.0 }, Trucks = { top = 50.0 } }
+  local t = Practice.BalanceTarget(classes, track, 'GT3')
+  EQ(t.top, 68.0); EQ(t.grip, 2.75); EQ(t.power, 0.34)
+  EQ(classes.GT3.top, 76.0, 'class table untouched')
+  EQ(Practice.BalanceTarget(classes, nil, 'GT3').top, 76.0)
+  EQ(Practice.BalanceTarget(classes, track, 'Trucks').top, 50.0)
+  EQ(Practice.BalanceTarget(classes, track, 'NASCAR'), nil)
+  EQ(Practice.BalanceTarget(classes, track, nil), nil)
+end)
+
+TEST('Practice.Balance caps fast cars, lifts slow ones and keeps what the target leaves out', function()
+  local target = { top = 76.0, grip = 2.75, power = 0.34 }
+  local fast = Practice.Balance(target, { top = 90.0, traction = 3.1, drive = 0.5 }, 60)
+  EQ(fast.top, 76.0); EQ(fast.grip, 2.75); EQ(fast.power, 0.34); EQ(fast.boost, 0, 'no boost above the ceiling')
+  local slow = Practice.Balance(target, { top = 60.0, traction = 2.2, drive = 0.25 }, 60)
+  TRUTHY(math.abs(slow.boost - (76.0 / 60.0 - 1) * 100) < 0.001, 'boost toward the ceiling: ' .. slow.boost)
+  EQ(Practice.Balance(target, { top = 30.0 }, 60).boost, 60, 'boost stops at maxBoost')
+  local partial = Practice.Balance({ top = 70.0 }, { top = 80.0, traction = 2.4, drive = 0.3 })
+  EQ(partial.grip, 2.4); EQ(partial.power, 0.3); EQ(partial.top, 70.0)
+  EQ(Practice.Balance({ grip = 2.5 }, { top = 50.0 }).boost, 0, 'no top target, no boost')
+end)

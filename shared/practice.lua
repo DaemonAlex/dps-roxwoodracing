@@ -271,3 +271,49 @@ function Practice.CarPhysics(stats, use, tune, base)
     aAccel = aAccel,
   }
 end
+
+--- Balance of performance (Damon 2026-10-25: a car that suits one track is too fast or too
+--- slow on another). Cars are balanced per class per track instead of one by one: every car
+--- in a class is set to that class's target on that track, so a GT3 grid drives alike.
+
+--- The class (set label) a model races in at a track: the first set that lists it.
+function Practice.ClassOf(sets, model)
+  if type(sets) ~= 'table' or not model then return nil end
+  local m = string.lower(model)
+  for _, set in ipairs(sets) do
+    for _, name in ipairs(set.models or {}) do
+      if string.lower(name) == m then return set.label end
+    end
+  end
+  return nil
+end
+
+--- A class's target on a track: the shared class target with the track's own values on top.
+--- Returns { top (m/s), grip (fTractionCurveMax), power (fInitialDriveForce) } or nil.
+function Practice.BalanceTarget(classes, trackClasses, label)
+  if not label then return nil end
+  local base = classes and classes[label]
+  local over = trackClasses and trackClasses[label]
+  if not base and not over then return nil end
+  local out = {}
+  for k, v in pairs(base or {}) do out[k] = v end
+  for k, v in pairs(over or {}) do out[k] = v end
+  return out
+end
+
+--- What to do to one car to hit its class target. stats: top (estimated m/s before any
+--- boost), traction, drive. Returns grip and power to write, the top-speed ceiling, and the
+--- power boost (percent, 0..maxBoost) that lifts a slower car toward the ceiling.
+function Practice.Balance(target, stats, maxBoost)
+  target, stats = target or {}, stats or {}
+  local out = {
+    grip  = target.grip or stats.traction,
+    power = target.power or stats.drive,
+    top   = target.top,
+    boost = 0,
+  }
+  if target.top and (stats.top or 0) > 0 and stats.top < target.top then
+    out.boost = math.min(maxBoost or 60, (target.top / stats.top - 1) * 100)
+  end
+  return out
+end

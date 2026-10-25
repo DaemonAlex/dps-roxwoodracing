@@ -29,6 +29,28 @@ local clockStart, lastClockAt = nil, 0
 local function log(msg) print('[dps-roxwoodracing] practice: ' .. msg) end
 local DRIVE_TASK = 0x93A5526E  -- SCRIPT_TASK_VEHICLE_DRIVE_TO_COORD
 
+-- Balance of performance (Config.Practice.balance): the class a model races in at the track
+-- this client is on, and that class's target there. nil = not balanced.
+local balanceCfg = Config.Practice.balance
+local function balanceFor(model)
+  if not balanceCfg or balanceCfg.enabled == false then return nil end
+  local label = Practice.ClassOf(cfg.sets, model)
+  local trackClasses = curTrack and balanceCfg.tracks and balanceCfg.tracks[curTrack.id]
+  local target = Practice.BalanceTarget(balanceCfg.classes, trackClasses, label)
+  return target and { label = label, target = target } or nil
+end
+
+-- Grip and power straight into this car's handling; fTractionCurveMin keeps its ratio to Max.
+local function setGripPower(veh, grip, power)
+  local tMax = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax')
+  local tMin = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMin')
+  if grip and tMax > 0 then
+    SetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax', grip)
+    SetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMin', tMin * grip / tMax)
+  end
+  if power then SetVehicleHandlingFloat(veh, 'CHandlingData', 'fInitialDriveForce', power) end
+end
+
 -- Primary/secondary colour pairs, one per grid slot (GTA colour indices)
 local palette = {
   { 27, 0 },    -- race red / black
@@ -267,7 +289,24 @@ local function spawn()
       if modLiveries and modLiveries > 0 then SetVehicleMod(veh, 48, math.random(0, modLiveries - 1), false) end
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
       if cfg.tunePreset and Customs and Customs.ApplyTune then Customs.ApplyTune(veh, cfg.tunePreset) end
-      if (cfg.topSpeedBoost or 0) > 0 then ModifyVehicleTopSpeed(veh, cfg.topSpeedBoost) end
+      -- Balance of performance: a car in a class here is set to that class's target on this
+      -- track (grip, power, a top-speed ceiling and a boost toward it); a car in no class
+      -- keeps the track's flat top-speed boost.
+      local bal = balanceFor(models[i])
+      local boost, ceiling = cfg.topSpeedBoost or 0, nil
+      if bal then
+        local b = Practice.Balance(bal.target, {
+          top      = GetVehicleEstimatedMaxSpeed(veh),
+          traction = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax'),
+          drive    = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fInitialDriveForce'),
+        }, balanceCfg.maxBoost)
+        setGripPower(veh, b.grip, b.power)
+        boost, ceiling = b.boost, b.top
+        if ceiling then SetEntityMaxSpeed(veh, ceiling) end
+        log(('car %d %s: balanced to %s (top %s m/s, grip %.2f, power %.2f, boost %.0f%%)'):format(
+          i, models[i], bal.label, ceiling and ('%.0f'):format(ceiling) or '-', b.grip or 0, b.power or 0, boost))
+      end
+      if boost > 0 then ModifyVehicleTopSpeed(veh, boost) end
       local banks = cfg.engineSounds
       if gridSet and gridSet.engineSounds ~= nil then banks = gridSet.engineSounds end
       if banks and #banks > 0 then
@@ -302,7 +341,9 @@ local function spawn()
         local function hf(field) return GetVehicleHandlingFloat(veh, 'CHandlingData', field) end
         local function set(field, value) SetVehicleHandlingFloat(veh, 'CHandlingData', field, value) end
         local tMax, tMin = hf('fTractionCurveMax'), hf('fTractionCurveMin')
-        local newMax = math.max(tMax * (assist.grip or 1.15), assist.minGrip or 2.6)
+        -- A balanced car already has its class grip: only the AI edge goes on top, no floor.
+        local floor = bal and 0 or (assist.minGrip or 2.6)
+        local newMax = math.max(tMax * (assist.grip or 1.15), floor)
         local scale = (tMax > 0) and (newMax / tMax) or 1.0
         set('fTractionCurveMax', newMax)
         set('fTractionCurveMin', tMin * scale)
@@ -316,11 +357,12 @@ local function spawn()
       local perCar = cfg.perCar
       if perCar and perCar.enabled ~= false then
         local stats = {
-          top      = GetVehicleEstimatedMaxSpeed(veh) * (1 + (cfg.topSpeedBoost or 0) / 100),
+          top      = GetVehicleEstimatedMaxSpeed(veh) * (1 + boost / 100),
           traction = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax'),
           drive    = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fInitialDriveForce'),
         }
-        local tune = (cfg.carTune or {})[models[i]] or (cfg.carTune or {})[string.lower(models[i])]
+        if ceiling and stats.top > ceiling then stats.top = ceiling end   -- the class ceiling holds it there
+        local tune =(cfg.carTune or {})[models[i]] or (cfg.carTune or {})[string.lower(models[i])]
         local phys = Practice.CarPhysics(stats, perCar, tune, cfg.physics)
         local own = {}
         for k, q in ipairs(pts) do
