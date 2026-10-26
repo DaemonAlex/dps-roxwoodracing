@@ -19,6 +19,7 @@ local lines = nil           -- { { name, pts, closed }, ... }
 local tracks = nil          -- Practice.Cluster over lines: { { id, centre, radius, lines }, ... }
 local curTrack = nil        -- the track this client is near (nil = none)
 local trackPoints, startZones, trackBlips = {}, {}, {}
+local boostZones = {}       -- "on the track" zones for the race-car track boost (client/trackboost.lua)
 local startSteering
 local targetLap = nil                         -- best rolling average on the track (ms), from the server
 local paceMult = mode.defaultPace or 0.85     -- grid pace multiplier
@@ -27,6 +28,28 @@ local clockStart, lastClockAt = nil, 0
 
 local function log(msg) print('[dps-roxwoodracing] practice: ' .. msg) end
 local DRIVE_TASK = 0x93A5526E  -- SCRIPT_TASK_VEHICLE_DRIVE_TO_COORD
+
+-- Balance of performance (Config.Practice.balance): the class a model races in at the track
+-- this client is on, and that class's target there. nil = not balanced.
+local balanceCfg = Config.Practice.balance
+local function balanceFor(model)
+  if not balanceCfg or balanceCfg.enabled == false then return nil end
+  local label = Practice.ClassOf(cfg.sets, model)
+  local trackClasses = curTrack and balanceCfg.tracks and balanceCfg.tracks[curTrack.id]
+  local target = Practice.BalanceTarget(balanceCfg.classes, trackClasses, label)
+  return target and { label = label, target = target } or nil
+end
+
+-- Grip and power straight into this car's handling; fTractionCurveMin keeps its ratio to Max.
+local function setGripPower(veh, grip, power)
+  local tMax = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax')
+  local tMin = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMin')
+  if grip and tMax > 0 then
+    SetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax', grip)
+    SetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMin', tMin * grip / tMax)
+  end
+  if power then SetVehicleHandlingFloat(veh, 'CHandlingData', 'fInitialDriveForce', power) end
+end
 
 -- Primary/secondary colour pairs, one per grid slot (GTA colour indices)
 local palette = {
@@ -266,7 +289,24 @@ local function spawn()
       if modLiveries and modLiveries > 0 then SetVehicleMod(veh, 48, math.random(0, modLiveries - 1), false) end
       SetVehicleNumberPlateText(veh, ('PRAC %02d'):format(i))
       if cfg.tunePreset and Customs and Customs.ApplyTune then Customs.ApplyTune(veh, cfg.tunePreset) end
-      if (cfg.topSpeedBoost or 0) > 0 then ModifyVehicleTopSpeed(veh, cfg.topSpeedBoost) end
+      -- Balance of performance: a car in a class here is set to that class's target on this
+      -- track (grip, power, a top-speed ceiling and a boost toward it); a car in no class
+      -- keeps the track's flat top-speed boost.
+      local bal = balanceFor(models[i])
+      local boost, ceiling = cfg.topSpeedBoost or 0, nil
+      if bal then
+        local b = Practice.Balance(bal.target, {
+          top      = GetVehicleEstimatedMaxSpeed(veh),
+          traction = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax'),
+          drive    = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fInitialDriveForce'),
+        }, balanceCfg.maxBoost)
+        setGripPower(veh, b.grip, b.power)
+        boost, ceiling = b.boost, b.top
+        if ceiling then SetEntityMaxSpeed(veh, ceiling) end
+        log(('car %d %s: balanced to %s (top %s m/s, grip %.2f, power %.2f, boost %.0f%%)'):format(
+          i, models[i], bal.label, ceiling and ('%.0f'):format(ceiling) or '-', b.grip or 0, b.power or 0, boost))
+      end
+      if boost > 0 then ModifyVehicleTopSpeed(veh, boost) end
       local banks = cfg.engineSounds
       if gridSet and gridSet.engineSounds ~= nil then banks = gridSet.engineSounds end
       if banks and #banks > 0 then
@@ -292,6 +332,50 @@ local function spawn()
       SetEntityLoadCollisionFlag(ped, true)
       SetEntityLodDist(veh, cfg.lodDistance or 3000)
       SetEntityLodDist(ped, cfg.lodDistance or 3000)
+      -- AI grip assist (Damon 2026-10-12: street cars slid all over, "it's okay to make these AI
+      -- cars a bit faster and easier to stick to the road"). This car only: more tyre grip,
+      -- with a floor so slippery street cars come up near race grip, and tyres that let go
+      -- less easily. Done before the per-car pace below so the pace uses the new grip.
+      local assist = cfg.aiAssist
+      if assist and assist.enabled ~= false then
+        local function hf(field) return GetVehicleHandlingFloat(veh, 'CHandlingData', field) end
+        local function set(field, value) SetVehicleHandlingFloat(veh, 'CHandlingData', field, value) end
+        local tMax, tMin = hf('fTractionCurveMax'), hf('fTractionCurveMin')
+        -- A balanced car already has its class grip: only the AI edge goes on top, no floor.
+        local floor = bal and 0 or (assist.minGrip or 2.6)
+        local newMax = math.max(tMax * (assist.grip or 1.15), floor)
+        local scale = (tMax > 0) and (newMax / tMax) or 1.0
+        set('fTractionCurveMax', newMax)
+        set('fTractionCurveMin', tMin * scale)
+        set('fTractionLossMult', hf('fTractionLossMult') * (assist.slide or 0.5))
+        set('fLowSpeedTractionLossMult', hf('fLowSpeedTractionLossMult') * (assist.slide or 0.5))
+      end
+      -- Per-car pace: this car's own speed for every point of the line, from its own grip,
+      -- power and top speed after the tune, so a street car brakes for the bends a race
+      -- car takes flat.
+      local lineVmax = L.vmax
+      local perCar = cfg.perCar
+      if perCar and perCar.enabled ~= false then
+        local stats = {
+          top      = GetVehicleEstimatedMaxSpeed(veh) * (1 + boost / 100),
+          traction = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fTractionCurveMax'),
+          drive    = GetVehicleHandlingFloat(veh, 'CHandlingData', 'fInitialDriveForce'),
+        }
+        if ceiling and stats.top > ceiling then stats.top = ceiling end   -- the class ceiling holds it there
+        local tune =(cfg.carTune or {})[models[i]] or (cfg.carTune or {})[string.lower(models[i])]
+        local phys = Practice.CarPhysics(stats, perCar, tune, cfg.physics)
+        local own = {}
+        for k, q in ipairs(pts) do
+          local p = {}; for key, val in pairs(q) do p[key] = val end
+          own[k] = p
+        end
+        Lines.SpeedProfilePhysics(own, L.closed, phys)
+        pts = own
+        lineVmax = 0.0
+        for _, q in ipairs(own) do if q.v > lineVmax then lineVmax = q.v end end
+        log(('car %d %s: top %.0f m/s, grip %.2f g, drive %.2f -> aLat %.1f aBrake %.1f aAccel %.1f, fastest point %.0f m/s%s'):format(
+          i, models[i], stats.top, stats.traction, stats.drive, phys.aLat, phys.aBrake, phys.aAccel, lineVmax, tune and ' (hand-tuned)' or ''))
+      end
       local v = cfg.paceVariance or 0.08
       local j = cfg.laneJitter or 1.5
       local c = {
@@ -300,8 +384,8 @@ local function spawn()
         bias = -j + 2 * j * math.random(),
         pace = 1 - v + 2 * v * math.random(),
       }
-      c.vmax = L.vmax
-      c.cruise = setSpeed(pts[idx].v or cfg.cruiseSpeed or 30.0, L.vmax) * c.pace
+      c.vmax = lineVmax
+      c.cruise = setSpeed(pts[idx].v or cfg.cruiseSpeed or 30.0, lineVmax) * c.pace
       c.speed = c.cruise
       c.prog = idx
       c.lastProg = GetGameTimer()
@@ -516,7 +600,8 @@ local function armTracks()
   for _, p in ipairs(trackPoints) do p:remove() end
   for _, z in ipairs(startZones) do z:remove() end
   for _, b in ipairs(trackBlips) do if DoesBlipExist(b) then RemoveBlip(b) end end
-  trackPoints, startZones, trackBlips = {}, {}, {}
+  for _, z in ipairs(boostZones) do z:remove() end
+  trackPoints, startZones, trackBlips, boostZones = {}, {}, {}, {}
   local ts = fetchTracks()
   if not ts then return false end
   local home = homeTrack(ts)
@@ -549,6 +634,15 @@ local function armTracks()
         despawn()
       end,
     })
+    local boost = Config.Practice.trackBoost
+    if boost and boost.enabled ~= false then
+      boostZones[#boostZones + 1] = lib.zones.sphere({
+        coords = vector3(t.centre.x, t.centre.y, t.centre.z),
+        radius = t.radius + (boost.margin or 40.0),
+        onEnter = function() TriggerEvent('dps-roxwoodracing:trackboost', t.id, true) end,
+        onExit = function() TriggerEvent('dps-roxwoodracing:trackboost', t.id, false) end,
+      })
+    end
     local s0 = t.lines[1].pts[1]
     startZones[#startZones + 1] = lib.zones.sphere({
       coords = vector3(s0.x, s0.y, s0.z),

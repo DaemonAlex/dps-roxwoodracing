@@ -247,3 +247,73 @@ function Practice.FormatMs(ms)
   local r = ms % 1000
   return ('%d:%02d.%03d'):format(m, s, r)
 end
+
+--- Driving numbers for one AI car, from that car's own handling after its tune (Damon
+--- 2026-10-12: street cars wiped out on the race-car profile, race cars were held back).
+--- stats: top (m/s, after any top-speed boost), traction (fTractionCurveMax, in g),
+--- drive (fInitialDriveForce). use: how hard the AI leans on the car (gripUse, brakeUse,
+--- accelScale). tune: per-model multipliers { grip, top, brake, accel }. base: track
+--- physics, only its vmin is kept. Returns { vmax, vmin, aLat, aBrake, aAccel }.
+function Practice.CarPhysics(stats, use, tune, base)
+  use, tune, base = use or {}, tune or {}, base or {}
+  local g = 9.81
+  local top = (stats.top or 0) > 0 and stats.top or (base.vmax or 60.0)
+  local traction = (stats.traction or 0) > 0 and stats.traction or 2.0
+  local drive = (stats.drive or 0) > 0 and stats.drive or 0.3
+  local aLat = traction * g * (use.gripUse or 1.0) * (tune.grip or 1.0)
+  local aAccel = drive * g * (use.accelScale or 3.0) * (tune.accel or 1.0)
+  if aAccel < 5.0 then aAccel = 5.0 elseif aAccel > 32.0 then aAccel = 32.0 end
+  return {
+    vmax   = top * (tune.top or 1.0),
+    vmin   = base.vmin or 12.0,
+    aLat   = aLat,
+    aBrake = aLat * (use.brakeUse or 1.1) * (tune.brake or 1.0),
+    aAccel = aAccel,
+  }
+end
+
+--- Balance of performance (Damon 2026-10-25: a car that suits one track is too fast or too
+--- slow on another). Cars are balanced per class per track instead of one by one: every car
+--- in a class is set to that class's target on that track, so a GT3 grid drives alike.
+
+--- The class (set label) a model races in at a track: the first set that lists it.
+function Practice.ClassOf(sets, model)
+  if type(sets) ~= 'table' or not model then return nil end
+  local m = string.lower(model)
+  for _, set in ipairs(sets) do
+    for _, name in ipairs(set.models or {}) do
+      if string.lower(name) == m then return set.label end
+    end
+  end
+  return nil
+end
+
+--- A class's target on a track: the shared class target with the track's own values on top.
+--- Returns { top (m/s), grip (fTractionCurveMax), power (fInitialDriveForce) } or nil.
+function Practice.BalanceTarget(classes, trackClasses, label)
+  if not label then return nil end
+  local base = classes and classes[label]
+  local over = trackClasses and trackClasses[label]
+  if not base and not over then return nil end
+  local out = {}
+  for k, v in pairs(base or {}) do out[k] = v end
+  for k, v in pairs(over or {}) do out[k] = v end
+  return out
+end
+
+--- What to do to one car to hit its class target. stats: top (estimated m/s before any
+--- boost), traction, drive. Returns grip and power to write, the top-speed ceiling, and the
+--- power boost (percent, 0..maxBoost) that lifts a slower car toward the ceiling.
+function Practice.Balance(target, stats, maxBoost)
+  target, stats = target or {}, stats or {}
+  local out = {
+    grip  = target.grip or stats.traction,
+    power = target.power or stats.drive,
+    top   = target.top,
+    boost = 0,
+  }
+  if target.top and (stats.top or 0) > 0 and stats.top < target.top then
+    out.boost = math.min(maxBoost or 60, (target.top / stats.top - 1) * 100)
+  end
+  return out
+end
