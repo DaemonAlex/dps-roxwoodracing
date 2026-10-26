@@ -2,12 +2,18 @@
 -- fees/purses become plain player cash (spec section 4) and a warning is printed at boot.
 Banking = {}
 Banking.Provider = 'none'
-if GetResourceState('Renewed-Banking') == 'started' or GetResourceState('Renewed-Banking') == 'starting' then
+local function up(res) local s = GetResourceState(res) return s == 'started' or s == 'starting' end
+-- wasabi_banking (DPS since 2026-09-22) answers the whole Renewed-Banking export surface through
+-- its compat bridge, but no resource named Renewed-Banking runs, so it is checked by its own name.
+local via = nil
+if up('Renewed-Banking') then
   Banking.Provider = 'Renewed-Banking'
+elseif up('wasabi_banking') then
+  Banking.Provider, via = 'Renewed-Banking', 'wasabi_banking'
 elseif GetResourceState('qb-banking') == 'started' then
   Banking.Provider = 'qb-banking'
 end
-print(('[dps-roxwoodracing] banking: %s'):format(Banking.Provider))
+print(('[dps-roxwoodracing] banking: %s%s'):format(Banking.Provider, via and (' (via %s)'):format(via) or ''))
 if Banking.Provider == 'none' then
   print('[dps-roxwoodracing] WARNING: no society banking found; entry fees and purses fall back to player cash')
 end
